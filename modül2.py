@@ -36,7 +36,12 @@ with tab_kurulum:
 
 # --- SEKME 2: 🗺️ PLANLAMA VE HARİTA ---
 with tab_harita:
-    st.markdown("### 🔄 Rota Ayarları")
+    
+    # 🌟 SİHİRLİ DOKUNUŞ: Haritayı ve Listeyi en üstte göstermek için görünmez bir kutu açıyoruz
+    harita_alani = st.container()
+    
+    st.markdown("---")
+    st.markdown("### 🔄 Rota Ayarları (Yeniden Planla)")
     
     if not yuklenen_dosya_input:
         st.warning("👈 Önce '1. Veri Yükleme' sekmesinden Excel dosyasını yüklemelisiniz!")
@@ -74,8 +79,6 @@ with tab_harita:
             if not ring_rotasi and secilen_bitis == "✍️ Farklı Bir Adres Yaz":
                 ozel_bitis = st.text_input("🔴 Bitiş Adresinizi Yazın:")
 
-            st.markdown("---")
-            
             # HESAPLAMA BUTONU
             if st.button("🚀 Rotayı Hesapla ve Haritayı Çiz", use_container_width=True):
                 if not api_key_input:
@@ -253,43 +256,44 @@ with tab_harita:
         except Exception as e:
             st.error(f"Excel okunurken hata oluştu: {e}")
 
-    # HARİTA VE LİSTE BÖLÜMÜ (Hesapla butonunun hemen altında açılır)
+    # --- HARİTA VE LİSTE BÖLÜMÜ (EN ÜSTTEKİ BOŞLUĞA ÇİZİLİR) ---
     if st.session_state.harita_hazir:
-        st.success("✅ Rota başarıyla hesaplandı! Aşağıdan güzergahı ve teslimat sırasını görebilirsiniz.")
-        
-        harita_sutunu, liste_sutunu = st.columns([6, 4])
-        
-        with harita_sutunu:
-            folium_static(st.session_state.m, width=700, height=500)
-            st.download_button(
-                label="📥 Optimize Edilmiş Rotayı Excel Olarak İndir",
-                data=st.session_state.buffer,
-                file_name=st.session_state.dosya_adi,
-                mime="application/vnd.ms-excel"
-            )
+        with harita_alani:
+            st.success("✅ Rota başarıyla hesaplandı! Aşağıdan yeni güzergahı inceleyebilirsiniz.")
             
-        with liste_sutunu:
-            st.markdown("### 📱 Teslimat Sırası (Şoför Modu)")
-            with st.container(height=500):
-                for idx, row in st.session_state.sirali_df.iterrows():
-                    durak_no = idx + 1
-                    lat = row['Enlem']
-                    lon = row['Boylam']
-                    
-                    tel_temiz = "".join(filter(str.isdigit, str(row['Telefon'])))
-                    if tel_temiz.startswith("0"):
-                        tel_temiz = "9" + tel_temiz
-                    if not tel_temiz.startswith("90") and len(tel_temiz) == 10:
-                        tel_temiz = "90" + tel_temiz
-                    
-                    if durak_no == 1:
-                        border_color, durak_etiketi = "#43a047", "BAŞLANGIÇ NOKTASI"
-                    elif durak_no == len(st.session_state.sirali_df):
-                        border_color, durak_etiketi = "#ff4b4b", "BİTİŞ NOKTASI"
-                    else:
-                        border_color, durak_etiketi = "#1e88e5", "TESLİMAT"
-                    
-                    kart_html = f"""
+            harita_sutunu, liste_sutunu = st.columns([6, 4])
+            
+            with harita_sutunu:
+                folium_static(st.session_state.m, width=700, height=500)
+                st.download_button(
+                    label="📥 Optimize Edilmiş Rotayı Excel Olarak İndir",
+                    data=st.session_state.buffer,
+                    file_name=st.session_state.dosya_adi,
+                    mime="application/vnd.ms-excel"
+                )
+                
+            with liste_sutunu:
+                st.markdown("### 📱 Teslimat Sırası (Şoför Modu)")
+                with st.container(height=500):
+                    for idx, row in st.session_state.sirali_df.iterrows():
+                        durak_no = idx + 1
+                        lat = row['Enlem']
+                        lon = row['Boylam']
+                        
+                        tel_temiz = "".join(filter(str.isdigit, str(row['Telefon'])))
+                        if tel_temiz.startswith("0"):
+                            tel_temiz = "9" + tel_temiz
+                        if not tel_temiz.startswith("90") and len(tel_temiz) == 10:
+                            tel_temiz = "90" + tel_temiz
+                        
+                        if durak_no == 1:
+                            border_color, durak_etiketi = "#43a047", "BAŞLANGIÇ NOKTASI"
+                        elif durak_no == len(st.session_state.sirali_df):
+                            border_color, durak_etiketi = "#ff4b4b", "BİTİŞ NOKTASI"
+                        else:
+                            border_color, durak_etiketi = "#1e88e5", "TESLİMAT"
+                        
+                        kart_html = f"""
 <div style="background-color: #262730; padding: 15px; border-radius: 12px; margin-bottom: 15px; border-left: 6px solid {border_color}; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
 <span style="background-color: {border_color}; color: white; padding: 4px 10px; border-radius: 20px; font-weight: bold; font-size: 14px;">{durak_no}</span>
@@ -304,4 +308,4 @@ with tab_harita:
 </div>
 </div>
 """
-                    st.markdown(kart_html, unsafe_allow_html=True)
+                        st.markdown(kart_html, unsafe_allow_html=True)
