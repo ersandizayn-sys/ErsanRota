@@ -1,0 +1,8 @@
+streamlit
+pandas
+googlemaps
+folium
+streamlit-folium
+ortools
+streamlit-geolocation
+xlsxwriter
