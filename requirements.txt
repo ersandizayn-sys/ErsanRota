@@ -6,3 +6,4 @@ streamlit-folium
 ortools
 streamlit-geolocation
 xlsxwriter
+openpyxl
