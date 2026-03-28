@@ -124,7 +124,44 @@ with tab_harita:
                 df_excel.columns = ['Siparis_No', 'Alici_Ad', 'Adres', 'Telefon']
                 df_excel = df_excel.dropna(subset=['Adres']).reset_index(drop=True)
                 
-                musteri_listesi = [f"[{i+1}] {row['Alici_Ad']} ➔ {str(row['Adres'])[:40]}..." for i, row in df_excel.iterrows()]
+                # Arka planda kimin kim olduğunu bilmek için gizli id atıyoruz
+                df_excel['Gizli_ID'] = df_excel.index + 1
+                
+                musteriler = []
+                secenek_mapping = {}
+                
+                # EĞER ROTA HESAPLANMIŞSA: Menüyü rotaya göre sırala
+                if st.session_state.harita_hazir and 'sirali_df' in st.session_state:
+                    durak_map = {}
+                    for i, r in st.session_state.sirali_df.iterrows():
+                        if pd.notna(r.get('Gizli_ID')) and r.get('Gizli_ID') != '-':
+                            durak_map[r['Gizli_ID']] = i + 1  # Haritadaki gerçek durak sırası
+                            
+                    for idx, row in df_excel.iterrows():
+                        gizli_id = row['Gizli_ID']
+                        if gizli_id in durak_map:
+                            d_no = durak_map[gizli_id]
+                            text = f"[{d_no}. Durak] {row['Alici_Ad']} ➔ {str(row['Adres'])[:35]}..."
+                            sort_key = d_no
+                        else:
+                            text = f"[Konum Bulunamadı] {row['Alici_Ad']} ➔ {str(row['Adres'])[:35]}..."
+                            sort_key = 9999 + gizli_id
+                        
+                        musteriler.append({"text": text, "sort_key": sort_key, "excel_idx": idx})
+                        
+                    # Seçenekleri durak sırasına göre 1'den başlayarak dizecek
+                    musteriler.sort(key=lambda x: x["sort_key"])
+                    
+                # ROTA HENÜZ HESAPLANMADIYSA: Normal sıra
+                else:
+                    for idx, row in df_excel.iterrows():
+                        text = f"[{idx+1}. Sıra] {row['Alici_Ad']} ➔ {str(row['Adres'])[:35]}..."
+                        musteriler.append({"text": text, "excel_idx": idx})
+                        
+                musteri_listesi = [m["text"] for m in musteriler]
+                
+                # Seçilen metnin asıl excel indeksini bulmak için akıllı sözlük
+                secenek_mapping = {m["text"]: m["excel_idx"] for m in musteriler}
                 secenekler = ["🏢 Depo (Ersan Dizayn, İstanbul)", "📍 GPS ile Konumumu Al", "✍️ Farklı Bir Adres Yaz"] + musteri_listesi
                 
                 col_ayar1, col_ayar2 = st.columns(2)
@@ -166,14 +203,14 @@ with tab_harita:
                             try:
                                 gmaps = googlemaps.Client(key=api_key_input)
                                 
-                                # Seçimden ID çıkarma fonksiyonu
+                                # Seçim metninden doğrudan orijinal indeksi çeken akıllı fonksiyon
                                 def parse_secim(secim):
                                     if secim.startswith("🏢"): return "depo", None
                                     elif secim.startswith("📍"): return "gps", None
                                     elif secim.startswith("✍️"): return "ozel", None
+                                    elif secim in secenek_mapping:
+                                        return "musteri", secenek_mapping[secim]
                                     else:
-                                        m = re.search(r"\[(\d+)\]", secim)
-                                        if m: return "musteri", int(m.group(1)) - 1
                                         return "unknown", None
 
                                 start_tip, start_idx_raw = parse_secim(secilen_baslangic)
@@ -183,7 +220,6 @@ with tab_harita:
                                 start_node_index = None
                                 end_node_index = None
 
-                                # 1. Başlangıç Düğümünü Ayarla (Müşteri değilse Listeye Ekle)
                                 if start_tip != "musteri":
                                     if start_tip == "depo":
                                         s_ad, s_adres = "🏢 DEPO", "Ersan Dizayn, İstanbul"
@@ -191,10 +227,9 @@ with tab_harita:
                                         s_ad, s_adres = "📍 ŞOFÖR (GPS)", f"{loc['latitude']},{loc['longitude']}"
                                     else:
                                         s_ad, s_adres = "🟢 ÖZEL BAŞLANGIÇ", ozel_baslangic
-                                    nodes.append({'Siparis_No': 'START', 'Alici_Ad': s_ad, 'Adres': s_adres, 'Telefon': '-'})
+                                    nodes.append({'Siparis_No': 'START', 'Gizli_ID': '-', 'Alici_Ad': s_ad, 'Adres': s_adres, 'Telefon': '-'})
                                     start_node_index = 0
 
-                                # 2. Bitiş Düğümünü Ayarla (Müşteri değilse Listeye Ekle)
                                 if not ring_rotasi and end_tip != "musteri":
                                     if end_tip == "depo":
                                         e_ad, e_adres = "🏢 DEPO", "Ersan Dizayn, İstanbul"
@@ -202,10 +237,9 @@ with tab_harita:
                                         e_ad, e_adres = "📍 ŞOFÖR (GPS)", f"{loc['latitude']},{loc['longitude']}"
                                     else:
                                         e_ad, e_adres = "🔴 ÖZEL BİTİŞ", ozel_bitis
-                                    nodes.append({'Siparis_No': 'END', 'Alici_Ad': e_ad, 'Adres': e_adres, 'Telefon': '-'})
+                                    nodes.append({'Siparis_No': 'END', 'Gizli_ID': '-', 'Alici_Ad': e_ad, 'Adres': e_adres, 'Telefon': '-'})
                                     end_node_index = len(nodes) - 1
 
-                                # 3. Müşterileri Listeye Ekle ve İndeksleri Sabitle
                                 musteri_offset = len(nodes)
                                 for idx, row in df_excel.iterrows():
                                     nodes.append(row.to_dict())
@@ -220,7 +254,6 @@ with tab_harita:
 
                                 df_all = pd.DataFrame(nodes)
 
-                                # 4. Hataya Dayanıklı Geocoding (Adres silinse bile Index kaymaz)
                                 enlemler, boylamlar = [], []
                                 gecerli_indeksler = []
 
@@ -251,7 +284,6 @@ with tab_harita:
                                     st.error("❌ Bitiş adresi haritada bulunamadı. Lütfen kontrol edin.")
                                     st.stop()
 
-                                # Filtrelenmiş listeye göre Start/End pozisyonunu kesin olarak bul
                                 yeni_start_idx = gecerli_indeksler.index(start_node_index)
                                 yeni_end_idx = gecerli_indeksler.index(end_node_index)
 
@@ -259,7 +291,6 @@ with tab_harita:
                                 df_filtered['Enlem'] = enlemler
                                 df_filtered['Boylam'] = boylamlar
 
-                                # 5. Mesafe Matrisi
                                 def mesafe_hesapla(lat1, lon1, lat2, lon2):
                                     R = 6371 
                                     phi1, phi2 = math.radians(lat1), math.radians(lat2)
@@ -279,7 +310,6 @@ with tab_harita:
                                             satir.append(int(dist))
                                     mesafe_matrisi.append(satir)
 
-                                # 6. Gelişmiş OR-Tools Çözücü
                                 manager = pywrapcp.RoutingIndexManager(len(mesafe_matrisi), 1, [yeni_start_idx], [yeni_end_idx])
                                 routing = pywrapcp.RoutingModel(manager)
 
@@ -293,9 +323,8 @@ with tab_harita:
 
                                 search_parameters = pywrapcp.DefaultRoutingSearchParameters()
                                 search_parameters.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
-                                # Yapay Zeka Derin Öğrenme Modülü (GUIDED LOCAL SEARCH) eklendi
                                 search_parameters.local_search_metaheuristic = routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
-                                search_parameters.time_limit.seconds = 3 # Optimizasyon için 3 saniye süre
+                                search_parameters.time_limit.seconds = 3 
 
                                 cozum = routing.SolveWithParameters(search_parameters)
 
@@ -306,7 +335,6 @@ with tab_harita:
                                         rota_sirasi.append(manager.IndexToNode(index))
                                         index = cozum.Value(routing.NextVar(index))
                                     
-                                    # Bitiş noktasını da ekle
                                     rota_sirasi.append(manager.IndexToNode(index))
                                         
                                     sirali_df = df_filtered.iloc[rota_sirasi].copy().reset_index(drop=True)
@@ -319,6 +347,8 @@ with tab_harita:
                                     for idx, row in sirali_df.iterrows():
                                         lat, lon = row['Enlem'], row['Boylam']
                                         koordinat_listesi.append((lat, lon))
+                                        
+                                        # Temiz Popup Tasarımı (Sadece Durak Numarası var)
                                         popup_text = f"<b>Durak {idx+1}</b><br>{row['Alici_Ad']}<br>Tel: {row['Telefon']}"
                                         
                                         if idx == 0:
@@ -336,7 +366,7 @@ with tab_harita:
                                         folium.Marker(
                                             [lat, lon], 
                                             popup=popup_text, 
-                                            tooltip=f"{idx+1}. Durak", 
+                                            tooltip=f"Durak {idx+1}", 
                                             icon=folium.DivIcon(html=marker_html, icon_anchor=(13, 13))
                                         ).add_to(m)
                                         
@@ -352,6 +382,7 @@ with tab_harita:
                                     st.session_state.dosya_adi = f"Ersan_Rota_{datetime.datetime.now().strftime('%H%M')}.xlsx"
                                     
                                     st.session_state.harita_hazir = True
+                                    st.rerun() # Rotayı hesapladıktan sonra menüyü anında güncellemek için sayfayı yeniler
                                 else:
                                     st.error("Bu adresler arasında geçerli bir rota bulunamadı!")
 
@@ -401,6 +432,7 @@ with tab_harita:
                         border_color = "#2196f3" 
                         durak_etiketi = "📦 TESLİMAT"
                     
+                    # TERTEMİZ TASARIM KARTI (Kafa karıştıran her şey silindi)
                     kart_html = f"""
 <div class="premium-card" style="border-left: 6px solid {border_color};">
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
