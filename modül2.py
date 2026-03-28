@@ -14,7 +14,7 @@ from streamlit_geolocation import streamlit_geolocation
 # ==========================================
 # 🔑 GOOGLE MAPS API ANAHTARINI BURAYA YAZ 🔑
 # ==========================================
-GOOGLE_MAPS_API_KEY = "BURAYA_KENDI_API_ANAHTARINI_YAZ"
+GOOGLE_MAPS_API_KEY = "AIzaSyAbn2TCWJDpKimkoKKb0cNcGWQj9gUF-Mg"
 
 # 1. Panel Sayfa Ayarları
 st.set_page_config(page_title="Ersan Dizayn Rota Paneli", layout="wide", initial_sidebar_state="collapsed")
@@ -102,7 +102,7 @@ with tab_kurulum:
         if 'uploaded_filename' not in st.session_state or st.session_state.uploaded_filename != yuklenen_dosya_input.name:
             st.session_state.uploaded_filename = yuklenen_dosya_input.name
             
-            df_raw = pd.read_excel(yuklenen_dosya_input, usecols="G,H,I,J,P")
+            df_raw = pd.read_excel(yuklenen_dosya_input, usecols="B,H,I,J,P")
             df_raw.columns = ['Paket_No', 'Siparis_No', 'Alici_Ad', 'Adres', 'Telefon']
             df_raw = df_raw.dropna(subset=['Adres']).reset_index(drop=True)
             
