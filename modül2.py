@@ -127,21 +127,32 @@ with tab_kurulum:
             current = st.session_state.wizard_step
             total = len(df_raw)
 
+            # Arama metni senkronizasyonu
+            if 'current_step_memory' not in st.session_state or st.session_state.current_step_memory != current:
+                st.session_state.current_step_memory = current
+                st.session_state.custom_search = df_raw.iloc[current]['Adres']
+
             st.markdown("---")
             st.markdown(f"### 📍 Adres Doğrulama Sihirbazı ({current + 1} / {total})")
             st.progress((current) / total)
             
             row = df_raw.iloc[current]
             
-            # Tasarım Kartı
+            # Şoförün Göreceği Gerçek Metin Kartı
             st.markdown(f"""
             <div style="background-color: #2b2b36; padding: 20px; border-radius: 12px; margin-bottom: 20px; border-left: 5px solid #1e88e5;">
                 <div style="font-size: 18px; font-weight: bold; color: white;">👤 {row['Alici_Ad']}</div>
-                <div style="color: #a0a0b0; font-size: 14px; margin-top: 8px;">📝 <b>Girilen Adres:</b> {row['Adres']}</div>
+                <div style="color: #4caf50; font-size: 12px; font-weight: bold; margin-top: 8px; margin-bottom: 4px;">ŞOFÖRÜN GÖRECEĞİ ADRES:</div>
+                <div style="color: #e0e0e0; font-size: 15px;">{row['Adres']}</div>
             </div>
             """, unsafe_allow_html=True)
 
-            # API'den sonuçları alıyoruz (Geri ileri yapınca tekrar kotadan yemesin diye cache'lendi)
+            # Kullanıcının adresi sadeleştirip tekrar aratabileceği arama kutusu
+            yeni_arama = st.text_input("🔍 Harita bulamadıysa, adresi sadeleştirip (Örn: Sadece sokak ve ilçe bırakarak) Enter'a basın:", value=st.session_state.custom_search)
+            if yeni_arama != st.session_state.custom_search:
+                st.session_state.custom_search = yeni_arama
+                st.rerun()
+
             @st.cache_data(show_spinner=False)
             def get_candidates(api_key, address):
                 gmaps = googlemaps.Client(key=api_key)
@@ -150,8 +161,8 @@ with tab_kurulum:
                 except:
                     return []
             
-            with st.spinner("Google Haritalar'dan en yakın adresler aranıyor..."):
-                res = get_candidates(api_key_input, row['Adres'])
+            with st.spinner("Google Haritalar'dan en yakın koordinatlar aranıyor..."):
+                res = get_candidates(api_key_input, st.session_state.custom_search)
 
             options = []
             for r in res:
@@ -165,7 +176,7 @@ with tab_kurulum:
             radio_list.append("⚠️ Orijinal metni kullan (Sisteme bırak)")
             radio_list.append("❌ Bu siparişi atla (Eksik/Hatalı Adres, Rotaya Ekleme)")
 
-            secim = st.radio("👇 Lütfen aşağıdaki adaylar arasından DOĞRU olanı seçin:", radio_list)
+            secim = st.radio("👇 Haritaya pin atılacak konumu seçin (Şoförün gördüğü yazı değişmeyecek):", radio_list)
 
             st.markdown("<br>", unsafe_allow_html=True)
             colA, colB = st.columns(2)
@@ -177,7 +188,7 @@ with tab_kurulum:
             with colB:
                 if st.button("Seçimi Onayla ve İleri ➡️", type="primary", use_container_width=True):
                     if secim == "❌ Bu siparişi atla (Eksik/Hatalı Adres, Rotaya Ekleme)":
-                        pass # Rotaya hiç eklemiyoruz, es geçiyoruz.
+                        pass 
                     elif secim == "⚠️ Orijinal metni kullan (Sisteme bırak)":
                         row_dict = row.to_dict()
                         row_dict['Onayli_Enlem'] = None
@@ -186,7 +197,8 @@ with tab_kurulum:
                     else:
                         selected_opt = next(item for item in options if item["label"] == secim)
                         row_dict = row.to_dict()
-                        row_dict['Adres'] = selected_opt['label'] # Kötü adresi Google'ın temiz adresiyle değiştirdik
+                        # DİKKAT: row_dict['Adres'] YAZISINI ASLA DEĞİŞTİRMİYORUZ!
+                        # Sadece haritada nereye pinleneceğini (lat, lng) kaydediyoruz.
                         row_dict['Onayli_Enlem'] = selected_opt['lat']
                         row_dict['Onayli_Boylam'] = selected_opt['lng']
                         st.session_state.validated_data.append(row_dict)
@@ -215,7 +227,6 @@ with tab_harita:
             st.warning("👈 Önce '1. Veri Yükleme ve Doğrulama' sekmesinden adresleri tek tek doğrulamanız gerekiyor!")
         else:
             try:
-                # ARTIK HAM EXCEL'İ DEĞİL, DOĞRULANMIŞ LİSTEYİ KULLANIYORUZ
                 df_excel = st.session_state.df_validated
                 
                 musteriler = []
@@ -288,7 +299,7 @@ with tab_harita:
                     elif not ring_rotasi and secilen_bitis == "✍️ Farklı Bir Adres Yaz" and not ozel_bitis:
                         st.error("Lütfen özel bitiş adresini yazın!")
                     else:
-                        with st.spinner('📍 Onaylı adresler yapay zekaya iletiliyor, rota çiziliyor...'):
+                        with st.spinner('📍 Onaylı koordinatlar yapay zekaya iletiliyor, rota çiziliyor...'):
                             try:
                                 gmaps = googlemaps.Client(key=api_key_input)
                                 
@@ -349,7 +360,7 @@ with tab_harita:
                                     lat, lon = 0.0, 0.0
                                     gizli_id = df_all['Gizli_ID'].iloc[i]
                                     
-                                    if gizli_id == '-': # Özel eklenen Depo, GPS veya Manuel Adres
+                                    if gizli_id == '-':
                                         if "," in str(adres) and str(adres).replace(',','').replace('.','').replace('-','').isdigit():
                                             l1, l2 = str(adres).split(",")
                                             lat, lon = float(l1), float(l2)
@@ -362,13 +373,11 @@ with tab_harita:
                                             except:
                                                 pass
                                     else:
-                                        # MÜŞTERİ: Doğrulama sihirbazında zaten konumunu bulmuştuk! İşlem saniyesinde biter.
                                         row_data = df_excel[df_excel['Gizli_ID'] == gizli_id].iloc[0]
                                         if pd.notna(row_data['Onayli_Enlem']) and pd.notna(row_data['Onayli_Boylam']):
                                             lat = float(row_data['Onayli_Enlem'])
                                             lon = float(row_data['Onayli_Boylam'])
                                         else:
-                                            # "Orijinal metni kullan" seçildiyse son bir şans API'ye sorulur
                                             try:
                                                 res = gmaps.geocode(f"{adres}, Türkiye")
                                                 if res:
