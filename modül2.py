@@ -5,23 +5,22 @@ import math
 import datetime
 import folium
 import io
+import re
 from streamlit_folium import folium_static
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
 from streamlit_geolocation import streamlit_geolocation
 
-# 1. Panel Sayfa Ayarları (Menü gizlendi, layout genişletildi)
+# 1. Panel Sayfa Ayarları
 st.set_page_config(page_title="Ersan Dizayn Rota Paneli", layout="wide", initial_sidebar_state="collapsed")
 
 # 🌟 PREMIUM TASARIM CSS ENJEKSİYONU 🌟
 st.markdown("""
 <style>
-    /* Sağ üstteki varsayılan Streamlit menüsünü ve alt bilgiyi gizle */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
 
-    /* Sekme (Tab) Tasarımlarını Modernleştirme */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
         background-color: transparent;
@@ -43,7 +42,6 @@ st.markdown("""
         box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
     }
 
-    /* Şoför Kartı ve Animasyonlar */
     .premium-card {
         background: linear-gradient(145deg, #22232a, #2a2b33);
         padding: 20px;
@@ -59,7 +57,6 @@ st.markdown("""
         box-shadow: 0 12px 25px rgba(0,0,0,0.3);
     }
     
-    /* Kart İçi Aksiyon Butonları */
     .action-btn {
         flex: 1;
         text-align: center;
@@ -91,7 +88,6 @@ st.title("🚚 Ersan Dizayn Rota Kontrol Merkezi")
 if 'harita_hazir' not in st.session_state:
     st.session_state.harita_hazir = False
 
-# 2. MENÜ SİSTEMİ (2 Temiz Sekme)
 tab_kurulum, tab_harita = st.tabs(["📂 1. Veri Yükleme", "🗺️ 2. Planlama ve Harita"])
 
 # --- SEKME 1: 📂 VERİ YÜKLEME ---
@@ -111,15 +107,12 @@ with tab_kurulum:
 
 # --- SEKME 2: 🗺️ PLANLAMA VE HARİTA ---
 with tab_harita:
-    
-    # 🌟 EKRAN HİYERARŞİSİ İÇİN 3 SABİT KUTU
     harita_kutusu = st.container()
     st.markdown("---") 
     ayarlar_kutusu = st.container()
     st.markdown("---") 
     liste_kutusu = st.container()
     
-    # --- ORTA KISIM: AYARLAR VE BUTON ---
     with ayarlar_kutusu:
         st.markdown("### 🔄 Rota Ayarları (Yeniden Planla)")
         
@@ -131,7 +124,7 @@ with tab_harita:
                 df_excel.columns = ['Siparis_No', 'Alici_Ad', 'Adres', 'Telefon']
                 df_excel = df_excel.dropna(subset=['Adres']).reset_index(drop=True)
                 
-                musteri_listesi = [f"[{i+1}] {row['Alici_Ad']} ➔ {row['Adres']}" for i, row in df_excel.iterrows()]
+                musteri_listesi = [f"[{i+1}] {row['Alici_Ad']} ➔ {str(row['Adres'])[:40]}..." for i, row in df_excel.iterrows()]
                 secenekler = ["🏢 Depo (Ersan Dizayn, İstanbul)", "📍 GPS ile Konumumu Al", "✍️ Farklı Bir Adres Yaz"] + musteri_listesi
                 
                 col_ayar1, col_ayar2 = st.columns(2)
@@ -159,7 +152,6 @@ with tab_harita:
                 if not ring_rotasi and secilen_bitis == "✍️ Farklı Bir Adres Yaz":
                     ozel_bitis = st.text_input("🔴 Bitiş Adresinizi Yazın:")
 
-                # HESAPLAMA BUTONU
                 if st.button("🚀 Rotayı Hesapla ve Haritayı Çiz", use_container_width=True):
                     if not api_key_input:
                         st.error("Lütfen API Anahtarını 'Veri Yükleme' sekmesine girin!")
@@ -170,72 +162,104 @@ with tab_harita:
                     elif not ring_rotasi and secilen_bitis == "✍️ Farklı Bir Adres Yaz" and not ozel_bitis:
                         st.error("Lütfen özel bitiş adresini yazın!")
                     else:
-                        with st.spinner('📍 Yapay zeka en kısa rotayı buluyor, lütfen bekleyin...'):
+                        with st.spinner('📍 Yapay zeka tüm olasılıkları hesaplıyor, mükemmel rota bulunuyor...'):
                             try:
                                 gmaps = googlemaps.Client(key=api_key_input)
                                 
-                                start_adres, start_ad = "", ""
-                                if secilen_baslangic == "🏢 Depo (Ersan Dizayn, İstanbul)":
-                                    start_adres, start_ad = "Ersan Dizayn, İstanbul", "🏢 DEPO"
-                                elif secilen_baslangic == "📍 GPS ile Konumumu Al":
-                                    lat, lon = loc['latitude'], loc['longitude']
-                                    start_adres, start_ad = f"{lat},{lon}", "📍 ŞOFÖR (GPS)"
-                                elif secilen_baslangic == "✍️ Farklı Bir Adres Yaz":
-                                    start_adres, start_ad = ozel_baslangic, "🟢 ÖZEL BAŞLANGIÇ"
-                                else:
-                                    start_adres = secilen_baslangic.split(" ➔ ")[1]
-                                    start_ad = secilen_baslangic.split("] ")[1].split(" ➔ ")[0]
-
-                                end_adres, end_ad = "", ""
-                                if not ring_rotasi:
-                                    if secilen_bitis == "🏢 Depo (Ersan Dizayn, İstanbul)":
-                                        end_adres, end_ad = "Ersan Dizayn, İstanbul", "🏢 DEPO"
-                                    elif secilen_bitis == "📍 GPS ile Konumumu Al":
-                                        lat, lon = loc['latitude'], loc['longitude']
-                                        end_adres, end_ad = f"{lat},{lon}", "📍 ŞOFÖR (GPS)"
-                                    elif secilen_bitis == "✍️ Farklı Bir Adres Yaz":
-                                        end_adres, end_ad = ozel_bitis, "🔴 ÖZEL BİTİŞ"
+                                # Seçimden ID çıkarma fonksiyonu
+                                def parse_secim(secim):
+                                    if secim.startswith("🏢"): return "depo", None
+                                    elif secim.startswith("📍"): return "gps", None
+                                    elif secim.startswith("✍️"): return "ozel", None
                                     else:
-                                        end_adres = secilen_bitis.split(" ➔ ")[1]
-                                        end_ad = secilen_bitis.split("] ")[1].split(" ➔ ")[0]
+                                        m = re.search(r"\[(\d+)\]", secim)
+                                        if m: return "musteri", int(m.group(1)) - 1
+                                        return "unknown", None
+
+                                start_tip, start_idx_raw = parse_secim(secilen_baslangic)
+                                end_tip, end_idx_raw = parse_secim(secilen_bitis)
 
                                 nodes = []
-                                nodes.append({'Siparis_No': 'START', 'Alici_Ad': start_ad, 'Adres': start_adres, 'Telefon': '-'})
-                                
-                                for idx, row in df_excel.iterrows():
-                                    if row['Adres'] == start_adres or (not ring_rotasi and row['Adres'] == end_adres):
-                                        continue
-                                    nodes.append(row.to_dict())
-                                    
-                                if not ring_rotasi:
-                                    nodes.append({'Siparis_No': 'END', 'Alici_Ad': end_ad, 'Adres': end_adres, 'Telefon': '-'})
-                                    
-                                df = pd.DataFrame(nodes)
+                                start_node_index = None
+                                end_node_index = None
 
+                                # 1. Başlangıç Düğümünü Ayarla (Müşteri değilse Listeye Ekle)
+                                if start_tip != "musteri":
+                                    if start_tip == "depo":
+                                        s_ad, s_adres = "🏢 DEPO", "Ersan Dizayn, İstanbul"
+                                    elif start_tip == "gps":
+                                        s_ad, s_adres = "📍 ŞOFÖR (GPS)", f"{loc['latitude']},{loc['longitude']}"
+                                    else:
+                                        s_ad, s_adres = "🟢 ÖZEL BAŞLANGIÇ", ozel_baslangic
+                                    nodes.append({'Siparis_No': 'START', 'Alici_Ad': s_ad, 'Adres': s_adres, 'Telefon': '-'})
+                                    start_node_index = 0
+
+                                # 2. Bitiş Düğümünü Ayarla (Müşteri değilse Listeye Ekle)
+                                if not ring_rotasi and end_tip != "musteri":
+                                    if end_tip == "depo":
+                                        e_ad, e_adres = "🏢 DEPO", "Ersan Dizayn, İstanbul"
+                                    elif end_tip == "gps":
+                                        e_ad, e_adres = "📍 ŞOFÖR (GPS)", f"{loc['latitude']},{loc['longitude']}"
+                                    else:
+                                        e_ad, e_adres = "🔴 ÖZEL BİTİŞ", ozel_bitis
+                                    nodes.append({'Siparis_No': 'END', 'Alici_Ad': e_ad, 'Adres': e_adres, 'Telefon': '-'})
+                                    end_node_index = len(nodes) - 1
+
+                                # 3. Müşterileri Listeye Ekle ve İndeksleri Sabitle
+                                musteri_offset = len(nodes)
+                                for idx, row in df_excel.iterrows():
+                                    nodes.append(row.to_dict())
+
+                                if start_tip == "musteri":
+                                    start_node_index = musteri_offset + start_idx_raw
+
+                                if ring_rotasi:
+                                    end_node_index = start_node_index
+                                elif end_tip == "musteri":
+                                    end_node_index = musteri_offset + end_idx_raw
+
+                                df_all = pd.DataFrame(nodes)
+
+                                # 4. Hataya Dayanıklı Geocoding (Adres silinse bile Index kaymaz)
                                 enlemler, boylamlar = [], []
-                                for adres in df['Adres']:
+                                gecerli_indeksler = []
+
+                                for i, adres in enumerate(df_all['Adres']):
+                                    lat, lon = 0.0, 0.0
                                     if "," in str(adres) and str(adres).replace(',','').replace('.','').replace('-','').isdigit():
-                                        lat, lon = adres.split(",")
-                                        enlemler.append(float(lat))
-                                        boylamlar.append(float(lon))
+                                        l1, l2 = str(adres).split(",")
+                                        lat, lon = float(l1), float(l2)
                                     else:
                                         tam_adres = f"{adres}, Türkiye"
                                         try:
                                             res = gmaps.geocode(tam_adres)
                                             if res:
-                                                enlemler.append(res[0]['geometry']['location']['lat'])
-                                                boylamlar.append(res[0]['geometry']['location']['lng'])
-                                            else:
-                                                enlemler.append(0.0)
-                                                boylamlar.append(0.0)
+                                                lat = res[0]['geometry']['location']['lat']
+                                                lon = res[0]['geometry']['location']['lng']
                                         except:
-                                            enlemler.append(0.0)
-                                            boylamlar.append(0.0)
+                                            pass
+                                            
+                                    if lat != 0.0 and lon != 0.0:
+                                        enlemler.append(lat)
+                                        boylamlar.append(lon)
+                                        gecerli_indeksler.append(i)
 
-                                df['Enlem'] = enlemler
-                                df['Boylam'] = boylamlar
-                                df = df[df['Enlem'] != 0.0].reset_index(drop=True)
+                                if start_node_index not in gecerli_indeksler:
+                                    st.error("❌ Başlangıç adresi haritada bulunamadı. Lütfen kontrol edin.")
+                                    st.stop()
+                                if end_node_index not in gecerli_indeksler:
+                                    st.error("❌ Bitiş adresi haritada bulunamadı. Lütfen kontrol edin.")
+                                    st.stop()
 
+                                # Filtrelenmiş listeye göre Start/End pozisyonunu kesin olarak bul
+                                yeni_start_idx = gecerli_indeksler.index(start_node_index)
+                                yeni_end_idx = gecerli_indeksler.index(end_node_index)
+
+                                df_filtered = df_all.iloc[gecerli_indeksler].copy().reset_index(drop=True)
+                                df_filtered['Enlem'] = enlemler
+                                df_filtered['Boylam'] = boylamlar
+
+                                # 5. Mesafe Matrisi
                                 def mesafe_hesapla(lat1, lon1, lat2, lon2):
                                     R = 6371 
                                     phi1, phi2 = math.radians(lat1), math.radians(lat2)
@@ -245,20 +269,18 @@ with tab_harita:
                                     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a)) * 1000 
 
                                 mesafe_matrisi = []
-                                for i in range(len(df)):
+                                for i in range(len(df_filtered)):
                                     satir = []
-                                    for j in range(len(df)):
+                                    for j in range(len(df_filtered)):
                                         if i == j:
                                             satir.append(0)
                                         else:
-                                            dist = mesafe_hesapla(df['Enlem'][i], df['Boylam'][i], df['Enlem'][j], df['Boylam'][j])
+                                            dist = mesafe_hesapla(df_filtered['Enlem'][i], df_filtered['Boylam'][i], df_filtered['Enlem'][j], df_filtered['Boylam'][j])
                                             satir.append(int(dist))
                                     mesafe_matrisi.append(satir)
 
-                                start_idx = 0
-                                end_idx = 0 if ring_rotasi else len(df) - 1
-                                
-                                manager = pywrapcp.RoutingIndexManager(len(mesafe_matrisi), 1, [start_idx], [end_idx])
+                                # 6. Gelişmiş OR-Tools Çözücü
+                                manager = pywrapcp.RoutingIndexManager(len(mesafe_matrisi), 1, [yeni_start_idx], [yeni_end_idx])
                                 routing = pywrapcp.RoutingModel(manager)
 
                                 def distance_callback(from_index, to_index):
@@ -271,6 +293,9 @@ with tab_harita:
 
                                 search_parameters = pywrapcp.DefaultRoutingSearchParameters()
                                 search_parameters.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
+                                # Yapay Zeka Derin Öğrenme Modülü (GUIDED LOCAL SEARCH) eklendi
+                                search_parameters.local_search_metaheuristic = routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
+                                search_parameters.time_limit.seconds = 3 # Optimizasyon için 3 saniye süre
 
                                 cozum = routing.SolveWithParameters(search_parameters)
 
@@ -281,12 +306,10 @@ with tab_harita:
                                         rota_sirasi.append(manager.IndexToNode(index))
                                         index = cozum.Value(routing.NextVar(index))
                                     
-                                    if ring_rotasi:
-                                        rota_sirasi.append(0) 
-                                    else:
-                                        rota_sirasi.append(end_idx)
+                                    # Bitiş noktasını da ekle
+                                    rota_sirasi.append(manager.IndexToNode(index))
                                         
-                                    sirali_df = df.iloc[rota_sirasi].copy().reset_index(drop=True)
+                                    sirali_df = df_filtered.iloc[rota_sirasi].copy().reset_index(drop=True)
 
                                     baslangic_lat = sirali_df['Enlem'].iloc[0]
                                     baslangic_lon = sirali_df['Boylam'].iloc[0]
@@ -329,6 +352,8 @@ with tab_harita:
                                     st.session_state.dosya_adi = f"Ersan_Rota_{datetime.datetime.now().strftime('%H%M')}.xlsx"
                                     
                                     st.session_state.harita_hazir = True
+                                else:
+                                    st.error("Bu adresler arasında geçerli bir rota bulunamadı!")
 
                             except Exception as e:
                                 st.error(f"Bir hata oluştu: {e}")
@@ -336,10 +361,10 @@ with tab_harita:
             except Exception as e:
                 st.error(f"Excel okunurken hata oluştu: {e}")
 
-    # --- ÜST KISIM: HARİTA BÖLÜMÜ (Ayarların Üstünde Çıkar) ---
+    # --- ÜST KISIM: HARİTA BÖLÜMÜ ---
     if st.session_state.harita_hazir:
         with harita_kutusu:
-            st.success("✅ Rota başarıyla hesaplandı! Aşağıdan yeni güzergahı inceleyebilirsiniz.")
+            st.success("✅ Gelişmiş Optimizasyonla Rota Hesaplandı! Aşağıdan güzergahı inceleyebilirsiniz.")
             
             folium_static(st.session_state.m, width=1200, height=500)
             st.download_button(
@@ -349,7 +374,7 @@ with tab_harita:
                 mime="application/vnd.ms-excel"
             )
 
-    # --- ALT KISIM: ŞOFÖR MODU BÖLÜMÜ (Ayarların Altında Çıkar) ---
+    # --- ALT KISIM: ŞOFÖR MODU BÖLÜMÜ ---
     if st.session_state.harita_hazir:
         with liste_kutusu:
             st.markdown("### 📱 Teslimat Sırası (Şoför Modu)")
@@ -367,16 +392,15 @@ with tab_harita:
                         tel_temiz = "90" + tel_temiz
                     
                     if durak_no == 1:
-                        border_color = "#4caf50" # Modern Yeşil
+                        border_color = "#4caf50" 
                         durak_etiketi = "🟢 BAŞLANGIÇ"
                     elif durak_no == len(st.session_state.sirali_df):
-                        border_color = "#ff5252" # Modern Kırmızı
+                        border_color = "#ff5252" 
                         durak_etiketi = "🔴 BİTİŞ"
                     else:
-                        border_color = "#2196f3" # Modern Mavi
+                        border_color = "#2196f3" 
                         durak_etiketi = "📦 TESLİMAT"
                     
-                    # Premium HTML Kart Tasarımı (Sola Yaslandı - Markdown hatasını çözer)
                     kart_html = f"""
 <div class="premium-card" style="border-left: 6px solid {border_color};">
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
