@@ -41,21 +41,6 @@ st.markdown("""
         border-top: 3px solid #1e88e5;
         box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
     }
-
-    .premium-card {
-        background: linear-gradient(145deg, #22232a, #2a2b33);
-        padding: 20px;
-        border-radius: 16px;
-        margin-bottom: 20px;
-        box-shadow: 0 8px 20px rgba(0,0,0,0.15);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-        position: relative;
-        overflow: hidden;
-    }
-    .premium-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 12px 25px rgba(0,0,0,0.3);
-    }
     
     .action-btn {
         flex: 1;
@@ -114,8 +99,11 @@ with tab_kurulum:
     if yuklenen_dosya_input and api_key_input:
         if 'uploaded_filename' not in st.session_state or st.session_state.uploaded_filename != yuklenen_dosya_input.name:
             st.session_state.uploaded_filename = yuklenen_dosya_input.name
-            df_raw = pd.read_excel(yuklenen_dosya_input, usecols="H,I,J,P")
-            df_raw.columns = ['Siparis_No', 'Alici_Ad', 'Adres', 'Telefon']
+            
+            # DİKKAT: Paket_No için "G" sütununu ekledim. Excel'in farklıysa G yerine doğru harfi yazabilirsin.
+            df_raw = pd.read_excel(yuklenen_dosya_input, usecols="B,H,I,J,P")
+            df_raw.columns = ['Paket_No', 'Siparis_No', 'Alici_Ad', 'Adres', 'Telefon']
+            
             df_raw = df_raw.dropna(subset=['Adres']).reset_index(drop=True)
             df_raw['Gizli_ID'] = df_raw.index + 1
             
@@ -144,15 +132,16 @@ with tab_kurulum:
                     st.session_state.current_step_memory = current
                     st.session_state.custom_search = row['Adres']
                 
-                st.markdown(f"""
-                <div style="background-color: #2b2b36; padding: 20px; border-radius: 12px; margin-bottom: 20px; border-left: 5px solid #1e88e5;">
-                    <div style="font-size: 18px; font-weight: bold; color: white;">👤 {row['Alici_Ad']}</div>
-                    <div style="color: #4caf50; font-size: 12px; font-weight: bold; margin-top: 8px; margin-bottom: 4px;">ŞOFÖRÜN GÖRECEĞİ ADRES:</div>
-                    <div style="color: #e0e0e0; font-size: 15px;">{row['Adres']}</div>
-                </div>
-                """, unsafe_allow_html=True)
+                # HTML bloğunun başındaki boşlukları kaldırdık ki Streamlit kod sanmasın
+                html_secim = f"""
+<div style="background-color: #2b2b36; padding: 20px; border-radius: 12px; margin-bottom: 20px; border-left: 5px solid #1e88e5;">
+<div style="font-size: 18px; font-weight: bold; color: white;">👤 {row['Alici_Ad']}</div>
+<div style="color: #4caf50; font-size: 12px; font-weight: bold; margin-top: 8px; margin-bottom: 4px;">ŞOFÖRÜN GÖRECEĞİ ADRES:</div>
+<div style="color: #e0e0e0; font-size: 15px;">{row['Adres']}</div>
+</div>
+"""
+                st.markdown(html_secim, unsafe_allow_html=True)
 
-                # MOBİL İÇİN GENİŞLETİLMİŞ TEXT AREA
                 yeni_arama = st.text_area("🔍 Harita bulamadıysa, adresi sadeleştirip (Örn: Bina ve daireyi silip sadece sokak bırakarak) Enter'a basın:", value=st.session_state.custom_search, height=100)
                 if yeni_arama != st.session_state.custom_search:
                     st.session_state.custom_search = yeni_arama
@@ -204,18 +193,24 @@ with tab_kurulum:
                 # ONAY EKRANI
                 secim = st.session_state.temp_selection
                 
-                st.markdown(f"""
-                <div style="background-color: #1e1e24; padding: 25px; border-radius: 12px; border: 2px solid #4caf50; box-shadow: 0 8px 16px rgba(0,0,0,0.3);">
-                    <h3 style="color: #4caf50; margin-top: 0; text-align: center;">✅ Sipariş Detay Onayı</h3>
-                    <hr style="border-color: #333;">
-                    <p style="color: #ccc; margin-bottom: 8px; font-size: 16px;">📦 <b>Sipariş / Paket No:</b> <span style="color: white; font-weight: bold;">{row['Siparis_No']}</span></p>
-                    <p style="color: #ccc; margin-bottom: 8px; font-size: 16px;">👤 <b>Müşteri:</b> <span style="color: white; font-weight: bold;">{row['Alici_Ad']}</span></p>
-                    <p style="color: #ccc; margin-bottom: 8px; font-size: 16px;">📞 <b>Telefon:</b> <span style="color: white; font-weight: bold;">{row['Telefon']}</span></p>
-                    <hr style="border-color: #333;">
-                    <p style="color: #ccc; margin-bottom: 8px; font-size: 14px;">📝 <b>Excel'deki Adres:</b><br>{row['Adres']}</p>
-                    <p style="color: #2196f3; font-weight: bold; margin-bottom: 0; font-size: 15px;">📍 <b>Haritada Seçilen Hedef:</b><br>{secim}</p>
-                </div>
-                """, unsafe_allow_html=True)
+                st.markdown("""<div style="background-color: #1e1e24; padding: 25px; border-radius: 12px; border: 2px solid #4caf50; box-shadow: 0 8px 16px rgba(0,0,0,0.3);">
+<h3 style="color: #4caf50; margin-top: 0; text-align: center;">✅ Sipariş Detay Onayı</h3>
+<hr style="border-color: #333;">""", unsafe_allow_html=True)
+
+                st.markdown(f"📦 **Paket No:** `{row['Paket_No']}`")
+                st.markdown(f"📑 **Sipariş No:** `{row['Siparis_No']}`")
+                st.markdown(f"📞 **Telefon:** `{row['Telefon']}`")
+                
+                # Müşteri Adı Düzenlenebilir Kutu
+                yeni_musteri_adi = st.text_input("👤 Müşteri Adı (Yanlışsa buradan düzeltebilirsiniz):", value=row['Alici_Ad'])
+                
+                html_onay_alt = f"""
+<hr style="border-color: #333;">
+<p style="color: #ccc; margin-bottom: 8px; font-size: 14px;">📝 <b>Excel'deki Adres:</b><br>{row['Adres']}</p>
+<p style="color: #2196f3; font-weight: bold; margin-bottom: 0; font-size: 15px;">📍 <b>Haritada Seçilen Hedef:</b><br>{secim}</p>
+</div>
+"""
+                st.markdown(html_onay_alt, unsafe_allow_html=True)
                 
                 st.markdown("<br>", unsafe_allow_html=True)
                 colA, colB = st.columns(2)
@@ -229,11 +224,13 @@ with tab_kurulum:
                             pass 
                         elif secim == "⚠️ Orijinal metni kullan (Sisteme bırak)":
                             row_dict = row.to_dict()
+                            row_dict['Alici_Ad'] = yeni_musteri_adi # Yeni adı kaydet
                             row_dict['Onayli_Enlem'] = None
                             row_dict['Onayli_Boylam'] = None
                             st.session_state.validated_data.append(row_dict)
                         else:
                             row_dict = row.to_dict()
+                            row_dict['Alici_Ad'] = yeni_musteri_adi # Yeni adı kaydet
                             row_dict['Onayli_Enlem'] = st.session_state.temp_lat
                             row_dict['Onayli_Boylam'] = st.session_state.temp_lng
                             st.session_state.validated_data.append(row_dict)
@@ -362,7 +359,7 @@ with tab_harita:
                                         s_ad, s_adres = "📍 ŞOFÖR (GPS)", f"{loc['latitude']},{loc['longitude']}"
                                     else:
                                         s_ad, s_adres = "🟢 ÖZEL BAŞLANGIÇ", ozel_baslangic
-                                    nodes.append({'Siparis_No': 'START', 'Gizli_ID': '-', 'Alici_Ad': s_ad, 'Adres': s_adres, 'Telefon': '-'})
+                                    nodes.append({'Siparis_No': 'START', 'Paket_No': '-', 'Gizli_ID': '-', 'Alici_Ad': s_ad, 'Adres': s_adres, 'Telefon': '-'})
                                     start_node_index = 0
 
                                 if not ring_rotasi and end_tip != "musteri":
@@ -372,7 +369,7 @@ with tab_harita:
                                         e_ad, e_adres = "📍 ŞOFÖR (GPS)", f"{loc['latitude']},{loc['longitude']}"
                                     else:
                                         e_ad, e_adres = "🔴 ÖZEL BİTİŞ", ozel_bitis
-                                    nodes.append({'Siparis_No': 'END', 'Gizli_ID': '-', 'Alici_Ad': e_ad, 'Adres': e_adres, 'Telefon': '-'})
+                                    nodes.append({'Siparis_No': 'END', 'Paket_No': '-', 'Gizli_ID': '-', 'Alici_Ad': e_ad, 'Adres': e_adres, 'Telefon': '-'})
                                     end_node_index = len(nodes) - 1
 
                                 musteri_offset = len(nodes)
@@ -581,6 +578,25 @@ with tab_harita:
                         border_color = "#2196f3" 
                         durak_etiketi = "📦 TESLİMAT"
                     
-                    # STREAMLIT HTML PARSER HATASINI ENGELLEMEK İÇİN KART TEK SATIRA İNDİRİLDİ
-                    kart_html = f"""<div class="premium-card" style="border-left: 6px solid {border_color};"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;"><div style="display: flex; align-items: center; gap: 10px;"><span style="background-color: {border_color}; color: white; padding: 6px 12px; border-radius: 8px; font-weight: 800; font-size: 16px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">#{durak_no}</span><span style="color: #b0b0b0; font-size: 11px; font-weight: 700; letter-spacing: 1px;">{durak_etiketi}</span></div></div><div style="font-size: 20px; font-weight: 700; color: #ffffff; margin-bottom: 6px; letter-spacing: 0.5px;">{row['Alici_Ad']}</div><div style="font-size: 14px; color: #a0a0b0; margin-bottom: 20px; line-height: 1.5; display: flex; align-items: flex-start; gap: 6px;"><span style="font-size: 16px;">📍</span> <span>{row['Adres']}</span></div><div style="display: flex; gap: 10px;"><a href="https://www.google.com/maps/dir/?api=1&destination={lat},{lon}" target="_blank" class="action-btn btn-maps">🗺️ Yol Tarifi</a><a href="tel:{tel_temiz}" class="action-btn btn-call">📞 Ara</a><a href="https://wa.me/{tel_temiz}" target="_blank" class="action-btn btn-wp">💬 WhatsApp</a></div></div>"""
+                    # STREAMLIT HTML PARSER HATASINI ENGELLEMEK İÇİN SOLA YASLI VE TEK PARÇA HTML
+                    kart_html = f"""
+<div style="background: linear-gradient(145deg, #22232a, #2a2b33); padding: 20px; border-radius: 16px; margin-bottom: 20px; border-left: 6px solid {border_color}; box-shadow: 0 8px 20px rgba(0,0,0,0.15);">
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+<div style="display: flex; align-items: center; gap: 10px;">
+<span style="background-color: {border_color}; color: white; padding: 6px 12px; border-radius: 8px; font-weight: 800; font-size: 16px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">#{durak_no}</span>
+<span style="color: #b0b0b0; font-size: 11px; font-weight: 700; letter-spacing: 1px;">{durak_etiketi}</span>
+</div>
+</div>
+<div style="font-size: 20px; font-weight: 700; color: #ffffff; margin-bottom: 6px; letter-spacing: 0.5px;">{row['Alici_Ad']}</div>
+<div style="font-size: 13px; color: #b0b0b0; margin-bottom: 6px;">📦 Paket No: {row['Paket_No']} &nbsp;|&nbsp; 📑 Sipariş: {row['Siparis_No']}</div>
+<div style="font-size: 14px; color: #a0a0b0; margin-bottom: 20px; line-height: 1.5; display: flex; align-items: flex-start; gap: 6px;">
+<span style="font-size: 16px;">📍</span><span>{row['Adres']}</span>
+</div>
+<div style="display: flex; gap: 10px;">
+<a href="https://www.google.com/maps/dir/?api=1&destination={lat},{lon}" target="_blank" class="action-btn btn-maps">🗺️ Yol Tarifi</a>
+<a href="tel:{tel_temiz}" class="action-btn btn-call">📞 Ara</a>
+<a href="https://wa.me/{tel_temiz}" target="_blank" class="action-btn btn-wp">💬 WhatsApp</a>
+</div>
+</div>
+"""
                     st.markdown(kart_html, unsafe_allow_html=True)
