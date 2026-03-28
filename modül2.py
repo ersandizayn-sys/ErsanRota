@@ -135,7 +135,7 @@ with tab_harita:
                     durak_map = {}
                     for i, r in st.session_state.sirali_df.iterrows():
                         if pd.notna(r.get('Gizli_ID')) and r.get('Gizli_ID') != '-':
-                            durak_map[r['Gizli_ID']] = i + 1  # Haritadaki gerçek durak sırası
+                            durak_map[r['Gizli_ID']] = i + 1  
                             
                     for idx, row in df_excel.iterrows():
                         gizli_id = row['Gizli_ID']
@@ -149,7 +149,6 @@ with tab_harita:
                         
                         musteriler.append({"text": text, "sort_key": sort_key, "excel_idx": idx})
                         
-                    # Seçenekleri durak sırasına göre 1'den başlayarak dizecek
                     musteriler.sort(key=lambda x: x["sort_key"])
                     
                 # ROTA HENÜZ HESAPLANMADIYSA: Normal sıra
@@ -159,20 +158,27 @@ with tab_harita:
                         musteriler.append({"text": text, "excel_idx": idx})
                         
                 musteri_listesi = [m["text"] for m in musteriler]
-                
-                # Seçilen metnin asıl excel indeksini bulmak için akıllı sözlük
                 secenek_mapping = {m["text"]: m["excel_idx"] for m in musteriler}
-                secenekler = ["🏢 Depo (Ersan Dizayn, İstanbul)", "📍 GPS ile Konumumu Al", "✍️ Farklı Bir Adres Yaz"] + musteri_listesi
+                
+                # Seçenekler listesini oluştur
+                secenekler = ["📍 GPS ile Konumumu Al", "🏢 Depo (Ersan Dizayn, İstanbul)", "✍️ Farklı Bir Adres Yaz"] + musteri_listesi
+                
+                # VARSAYILAN DEĞERLERİ AYARLIYORUZ (Depo'dan kurtulmak için)
+                # İlk 3 seçenek sabit olduğu için, 3. indeks ilk müşteriye denk gelir.
+                default_baslangic_idx = 3 if len(musteri_listesi) > 0 else 0
+                default_bitis_idx = len(secenekler) - 1 if len(musteri_listesi) > 0 else 0
                 
                 col_ayar1, col_ayar2 = st.columns(2)
                 
                 with col_ayar1:
-                    secilen_baslangic = st.selectbox("🟢 Başlangıç Noktası:", secenekler, index=0)
+                    # Başlangıç noktası artık varsayılan olarak ilk müşteriyi seçer
+                    secilen_baslangic = st.selectbox("🟢 Başlangıç Noktası:", secenekler, index=default_baslangic_idx)
                     
                 with col_ayar2:
                     ring_rotasi = st.checkbox("🔄 Rotayı bitirince tekrar Başlangıç Noktasına dön", value=False)
                     if not ring_rotasi:
-                        secilen_bitis = st.selectbox("🔴 Bitiş Noktası:", secenekler, index=0)
+                        # Bitiş noktası artık varsayılan olarak son müşteriyi seçer
+                        secilen_bitis = st.selectbox("🔴 Bitiş Noktası:", secenekler, index=default_bitis_idx)
                     else:
                         secilen_bitis = secilen_baslangic
                         
@@ -203,7 +209,6 @@ with tab_harita:
                             try:
                                 gmaps = googlemaps.Client(key=api_key_input)
                                 
-                                # Seçim metninden doğrudan orijinal indeksi çeken akıllı fonksiyon
                                 def parse_secim(secim):
                                     if secim.startswith("🏢"): return "depo", None
                                     elif secim.startswith("📍"): return "gps", None
@@ -348,7 +353,6 @@ with tab_harita:
                                         lat, lon = row['Enlem'], row['Boylam']
                                         koordinat_listesi.append((lat, lon))
                                         
-                                        # Temiz Popup Tasarımı (Sadece Durak Numarası var)
                                         popup_text = f"<b>Durak {idx+1}</b><br>{row['Alici_Ad']}<br>Tel: {row['Telefon']}"
                                         
                                         if idx == 0:
@@ -382,7 +386,7 @@ with tab_harita:
                                     st.session_state.dosya_adi = f"Ersan_Rota_{datetime.datetime.now().strftime('%H%M')}.xlsx"
                                     
                                     st.session_state.harita_hazir = True
-                                    st.rerun() # Rotayı hesapladıktan sonra menüyü anında güncellemek için sayfayı yeniler
+                                    st.rerun() 
                                 else:
                                     st.error("Bu adresler arasında geçerli bir rota bulunamadı!")
 
@@ -432,7 +436,6 @@ with tab_harita:
                         border_color = "#2196f3" 
                         durak_etiketi = "📦 TESLİMAT"
                     
-                    # TERTEMİZ TASARIM KARTI (Kafa karıştıran her şey silindi)
                     kart_html = f"""
 <div class="premium-card" style="border-left: 6px solid {border_color};">
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
