@@ -90,6 +90,10 @@ if 'harita_hazir' not in st.session_state: st.session_state.harita_hazir = False
 if 'wizard_step' not in st.session_state: st.session_state.wizard_step = 0
 if 'validated_data' not in st.session_state: st.session_state.validated_data = []
 if 'validation_complete' not in st.session_state: st.session_state.validation_complete = False
+if 'awaiting_confirmation' not in st.session_state: st.session_state.awaiting_confirmation = False
+if 'temp_selection' not in st.session_state: st.session_state.temp_selection = None
+if 'temp_lat' not in st.session_state: st.session_state.temp_lat = None
+if 'temp_lng' not in st.session_state: st.session_state.temp_lng = None
 
 tab_kurulum, tab_harita = st.tabs(["📂 1. Veri Yükleme ve Doğrulama", "🗺️ 2. Planlama ve Harita"])
 
@@ -120,94 +124,126 @@ with tab_kurulum:
             st.session_state.validated_data = []
             st.session_state.validation_complete = False
             st.session_state.harita_hazir = False
+            st.session_state.awaiting_confirmation = False
 
         # SİHİRBAZ EKRANI
         if not st.session_state.validation_complete:
             df_raw = st.session_state.raw_df
             current = st.session_state.wizard_step
             total = len(df_raw)
-
-            # Arama metni senkronizasyonu
-            if 'current_step_memory' not in st.session_state or st.session_state.current_step_memory != current:
-                st.session_state.current_step_memory = current
-                st.session_state.custom_search = df_raw.iloc[current]['Adres']
+            row = df_raw.iloc[current]
 
             st.markdown("---")
             st.markdown(f"### 📍 Adres Doğrulama Sihirbazı ({current + 1} / {total})")
             st.progress((current) / total)
             
-            row = df_raw.iloc[current]
-            
-            # Şoförün Göreceği Gerçek Metin Kartı
-            st.markdown(f"""
-            <div style="background-color: #2b2b36; padding: 20px; border-radius: 12px; margin-bottom: 20px; border-left: 5px solid #1e88e5;">
-                <div style="font-size: 18px; font-weight: bold; color: white;">👤 {row['Alici_Ad']}</div>
-                <div style="color: #4caf50; font-size: 12px; font-weight: bold; margin-top: 8px; margin-bottom: 4px;">ŞOFÖRÜN GÖRECEĞİ ADRES:</div>
-                <div style="color: #e0e0e0; font-size: 15px;">{row['Adres']}</div>
-            </div>
-            """, unsafe_allow_html=True)
+            # --- ONAY EKRANI MI YOKSA SEÇİM EKRANI MI? ---
+            if not st.session_state.awaiting_confirmation:
+                # SEÇİM EKRANI
+                if 'current_step_memory' not in st.session_state or st.session_state.current_step_memory != current:
+                    st.session_state.current_step_memory = current
+                    st.session_state.custom_search = row['Adres']
+                
+                st.markdown(f"""
+                <div style="background-color: #2b2b36; padding: 20px; border-radius: 12px; margin-bottom: 20px; border-left: 5px solid #1e88e5;">
+                    <div style="font-size: 18px; font-weight: bold; color: white;">👤 {row['Alici_Ad']}</div>
+                    <div style="color: #4caf50; font-size: 12px; font-weight: bold; margin-top: 8px; margin-bottom: 4px;">ŞOFÖRÜN GÖRECEĞİ ADRES:</div>
+                    <div style="color: #e0e0e0; font-size: 15px;">{row['Adres']}</div>
+                </div>
+                """, unsafe_allow_html=True)
 
-            # Kullanıcının adresi sadeleştirip tekrar aratabileceği arama kutusu
-            yeni_arama = st.text_input("🔍 Harita bulamadıysa, adresi sadeleştirip (Örn: Sadece sokak ve ilçe bırakarak) Enter'a basın:", value=st.session_state.custom_search)
-            if yeni_arama != st.session_state.custom_search:
-                st.session_state.custom_search = yeni_arama
-                st.rerun()
-
-            @st.cache_data(show_spinner=False)
-            def get_candidates(api_key, address):
-                gmaps = googlemaps.Client(key=api_key)
-                try:
-                    return gmaps.geocode(f"{address}, Türkiye")
-                except:
-                    return []
-            
-            with st.spinner("Google Haritalar'dan en yakın koordinatlar aranıyor..."):
-                res = get_candidates(api_key_input, st.session_state.custom_search)
-
-            options = []
-            for r in res:
-                options.append({
-                    "label": r['formatted_address'],
-                    "lat": r['geometry']['location']['lat'],
-                    "lng": r['geometry']['location']['lng']
-                })
-
-            radio_list = [opt["label"] for opt in options]
-            radio_list.append("⚠️ Orijinal metni kullan (Sisteme bırak)")
-            radio_list.append("❌ Bu siparişi atla (Eksik/Hatalı Adres, Rotaya Ekleme)")
-
-            secim = st.radio("👇 Haritaya pin atılacak konumu seçin (Şoförün gördüğü yazı değişmeyecek):", radio_list)
-
-            st.markdown("<br>", unsafe_allow_html=True)
-            colA, colB = st.columns(2)
-            with colA:
-                if st.button("⬅️ Önceki Kayıt", disabled=(current == 0), use_container_width=True):
-                    st.session_state.wizard_step -= 1
-                    st.session_state.validated_data.pop()
+                # MOBİL İÇİN GENİŞLETİLMİŞ TEXT AREA
+                yeni_arama = st.text_area("🔍 Harita bulamadıysa, adresi sadeleştirip (Örn: Bina ve daireyi silip sadece sokak bırakarak) Enter'a basın:", value=st.session_state.custom_search, height=100)
+                if yeni_arama != st.session_state.custom_search:
+                    st.session_state.custom_search = yeni_arama
                     st.rerun()
-            with colB:
-                if st.button("Seçimi Onayla ve İleri ➡️", type="primary", use_container_width=True):
-                    if secim == "❌ Bu siparişi atla (Eksik/Hatalı Adres, Rotaya Ekleme)":
-                        pass 
-                    elif secim == "⚠️ Orijinal metni kullan (Sisteme bırak)":
-                        row_dict = row.to_dict()
-                        row_dict['Onayli_Enlem'] = None
-                        row_dict['Onayli_Boylam'] = None
-                        st.session_state.validated_data.append(row_dict)
-                    else:
-                        selected_opt = next(item for item in options if item["label"] == secim)
-                        row_dict = row.to_dict()
-                        # DİKKAT: row_dict['Adres'] YAZISINI ASLA DEĞİŞTİRMİYORUZ!
-                        # Sadece haritada nereye pinleneceğini (lat, lng) kaydediyoruz.
-                        row_dict['Onayli_Enlem'] = selected_opt['lat']
-                        row_dict['Onayli_Boylam'] = selected_opt['lng']
-                        st.session_state.validated_data.append(row_dict)
 
-                    st.session_state.wizard_step += 1
-                    if st.session_state.wizard_step >= total:
-                        st.session_state.validation_complete = True
-                        st.session_state.df_validated = pd.DataFrame(st.session_state.validated_data)
-                    st.rerun()
+                @st.cache_data(show_spinner=False)
+                def get_candidates(api_key, address):
+                    gmaps = googlemaps.Client(key=api_key)
+                    try:
+                        return gmaps.geocode(f"{address}, Türkiye")
+                    except:
+                        return []
+                
+                with st.spinner("Google Haritalar'dan alternatifler aranıyor..."):
+                    res = get_candidates(api_key_input, st.session_state.custom_search)
+
+                options = []
+                for r in res:
+                    options.append({
+                        "label": r['formatted_address'],
+                        "lat": r['geometry']['location']['lat'],
+                        "lng": r['geometry']['location']['lng']
+                    })
+
+                radio_list = [opt["label"] for opt in options]
+                radio_list.append("⚠️ Orijinal metni kullan (Sisteme bırak)")
+                radio_list.append("❌ Bu siparişi atla (Eksik/Hatalı Adres, Rotaya Ekleme)")
+
+                secim = st.radio("👇 Haritaya pin atılacak konumu seçin (Şoförün gördüğü yazı değişmeyecek):", radio_list)
+
+                st.markdown("<br>", unsafe_allow_html=True)
+                colA, colB = st.columns(2)
+                with colA:
+                    if st.button("⬅️ Önceki Kayıt", disabled=(current == 0), use_container_width=True):
+                        st.session_state.wizard_step -= 1
+                        st.session_state.validated_data.pop()
+                        st.rerun()
+                with colB:
+                    if st.button("Seçimi Onayla ve İleri ➡️", type="primary", use_container_width=True):
+                        st.session_state.temp_selection = secim
+                        if secim not in ["❌ Bu siparişi atla (Eksik/Hatalı Adres, Rotaya Ekleme)", "⚠️ Orijinal metni kullan (Sisteme bırak)"]:
+                            selected_opt = next(item for item in options if item["label"] == secim)
+                            st.session_state.temp_lat = selected_opt['lat']
+                            st.session_state.temp_lng = selected_opt['lng']
+                        st.session_state.awaiting_confirmation = True
+                        st.rerun()
+
+            else:
+                # ONAY EKRANI
+                secim = st.session_state.temp_selection
+                
+                st.markdown(f"""
+                <div style="background-color: #1e1e24; padding: 25px; border-radius: 12px; border: 2px solid #4caf50; box-shadow: 0 8px 16px rgba(0,0,0,0.3);">
+                    <h3 style="color: #4caf50; margin-top: 0; text-align: center;">✅ Sipariş Detay Onayı</h3>
+                    <hr style="border-color: #333;">
+                    <p style="color: #ccc; margin-bottom: 8px; font-size: 16px;">📦 <b>Sipariş / Paket No:</b> <span style="color: white; font-weight: bold;">{row['Siparis_No']}</span></p>
+                    <p style="color: #ccc; margin-bottom: 8px; font-size: 16px;">👤 <b>Müşteri:</b> <span style="color: white; font-weight: bold;">{row['Alici_Ad']}</span></p>
+                    <p style="color: #ccc; margin-bottom: 8px; font-size: 16px;">📞 <b>Telefon:</b> <span style="color: white; font-weight: bold;">{row['Telefon']}</span></p>
+                    <hr style="border-color: #333;">
+                    <p style="color: #ccc; margin-bottom: 8px; font-size: 14px;">📝 <b>Excel'deki Adres:</b><br>{row['Adres']}</p>
+                    <p style="color: #2196f3; font-weight: bold; margin-bottom: 0; font-size: 15px;">📍 <b>Haritada Seçilen Hedef:</b><br>{secim}</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                st.markdown("<br>", unsafe_allow_html=True)
+                colA, colB = st.columns(2)
+                with colA:
+                    if st.button("⬅️ İptal (Geri Dön)", use_container_width=True):
+                        st.session_state.awaiting_confirmation = False
+                        st.rerun()
+                with colB:
+                    if st.button("✅ BİLGİLER DOĞRU, SIRADAKİNE GEÇ", type="primary", use_container_width=True):
+                        if secim == "❌ Bu siparişi atla (Eksik/Hatalı Adres, Rotaya Ekleme)":
+                            pass 
+                        elif secim == "⚠️ Orijinal metni kullan (Sisteme bırak)":
+                            row_dict = row.to_dict()
+                            row_dict['Onayli_Enlem'] = None
+                            row_dict['Onayli_Boylam'] = None
+                            st.session_state.validated_data.append(row_dict)
+                        else:
+                            row_dict = row.to_dict()
+                            row_dict['Onayli_Enlem'] = st.session_state.temp_lat
+                            row_dict['Onayli_Boylam'] = st.session_state.temp_lng
+                            st.session_state.validated_data.append(row_dict)
+                        
+                        st.session_state.wizard_step += 1
+                        st.session_state.awaiting_confirmation = False
+                        if st.session_state.wizard_step >= total:
+                            st.session_state.validation_complete = True
+                            st.session_state.df_validated = pd.DataFrame(st.session_state.validated_data)
+                        st.rerun()
         else:
             st.success(f"✅ BÜTÜN ADRESLER DOĞRULANDI! Toplam {len(st.session_state.df_validated)} sipariş başarıyla rotaya eklenmeye hazır.")
             st.info("Lütfen sayfanın en üstünden '2. Planlama ve Harita' sekmesine geçiniz.")
@@ -545,34 +581,6 @@ with tab_harita:
                         border_color = "#2196f3" 
                         durak_etiketi = "📦 TESLİMAT"
                     
-                    kart_html = f"""
-<div class="premium-card" style="border-left: 6px solid {border_color};">
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-<div style="display: flex; align-items: center; gap: 10px;">
-<span style="background-color: {border_color}; color: white; padding: 6px 12px; border-radius: 8px; font-weight: 800; font-size: 16px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
-#{durak_no}
-</span>
-<span style="color: #b0b0b0; font-size: 11px; font-weight: 700; letter-spacing: 1px;">{durak_etiketi}</span>
-</div>
-</div>
-<div style="font-size: 20px; font-weight: 700; color: #ffffff; margin-bottom: 6px; letter-spacing: 0.5px;">
-{row['Alici_Ad']}
-</div>
-<div style="font-size: 14px; color: #a0a0b0; margin-bottom: 20px; line-height: 1.5; display: flex; align-items: flex-start; gap: 6px;">
-<span style="font-size: 16px;">📍</span> 
-<span>{row['Adres']}</span>
-</div>
-<div style="display: flex; gap: 10px;">
-<a href="https://www.google.com/maps/dir/?api=1&destination={lat},{lon}" target="_blank" class="action-btn btn-maps">
-🗺️ Yol Tarifi
-</a>
-<a href="tel:{tel_temiz}" class="action-btn btn-call">
-📞 Ara
-</a>
-<a href="https://wa.me/{tel_temiz}" target="_blank" class="action-btn btn-wp">
-💬 WhatsApp
-</a>
-</div>
-</div>
-"""
+                    # STREAMLIT HTML PARSER HATASINI ENGELLEMEK İÇİN KART TEK SATIRA İNDİRİLDİ
+                    kart_html = f"""<div class="premium-card" style="border-left: 6px solid {border_color};"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;"><div style="display: flex; align-items: center; gap: 10px;"><span style="background-color: {border_color}; color: white; padding: 6px 12px; border-radius: 8px; font-weight: 800; font-size: 16px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">#{durak_no}</span><span style="color: #b0b0b0; font-size: 11px; font-weight: 700; letter-spacing: 1px;">{durak_etiketi}</span></div></div><div style="font-size: 20px; font-weight: 700; color: #ffffff; margin-bottom: 6px; letter-spacing: 0.5px;">{row['Alici_Ad']}</div><div style="font-size: 14px; color: #a0a0b0; margin-bottom: 20px; line-height: 1.5; display: flex; align-items: flex-start; gap: 6px;"><span style="font-size: 16px;">📍</span> <span>{row['Adres']}</span></div><div style="display: flex; gap: 10px;"><a href="https://www.google.com/maps/dir/?api=1&destination={lat},{lon}" target="_blank" class="action-btn btn-maps">🗺️ Yol Tarifi</a><a href="tel:{tel_temiz}" class="action-btn btn-call">📞 Ara</a><a href="https://wa.me/{tel_temiz}" target="_blank" class="action-btn btn-wp">💬 WhatsApp</a></div></div>"""
                     st.markdown(kart_html, unsafe_allow_html=True)
