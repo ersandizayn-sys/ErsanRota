@@ -10,8 +10,82 @@ from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
 from streamlit_geolocation import streamlit_geolocation
 
-# 1. Panel Sayfa Ayarları
-st.set_page_config(page_title="Ersan Dizayn Rota Paneli", layout="wide")
+# 1. Panel Sayfa Ayarları (Menü gizlendi, layout genişletildi)
+st.set_page_config(page_title="Ersan Dizayn Rota Paneli", layout="wide", initial_sidebar_state="collapsed")
+
+# 🌟 PREMIUM TASARIM CSS ENJEKSİYONU 🌟
+st.markdown("""
+<style>
+    /* Sağ üstteki varsayılan Streamlit menüsünü ve alt bilgiyi gizle */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+
+    /* Sekme (Tab) Tasarımlarını Modernleştirme */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background-color: transparent;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        border-radius: 8px 8px 0px 0px;
+        padding: 10px 24px;
+        background-color: #1e1e24;
+        border: 1px solid #333;
+        border-bottom: none;
+        color: #a0a0a0;
+        transition: all 0.3s ease;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #2b2b36 !important;
+        color: white !important;
+        border-top: 3px solid #1e88e5;
+        box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
+    }
+
+    /* Şoför Kartı ve Animasyonlar */
+    .premium-card {
+        background: linear-gradient(145deg, #22232a, #2a2b33);
+        padding: 20px;
+        border-radius: 16px;
+        margin-bottom: 20px;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    .premium-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 25px rgba(0,0,0,0.3);
+    }
+    
+    /* Kart İçi Aksiyon Butonları */
+    .action-btn {
+        flex: 1;
+        text-align: center;
+        padding: 12px 0;
+        border-radius: 10px;
+        text-decoration: none !important;
+        font-weight: 600;
+        font-size: 14px;
+        color: white !important;
+        transition: all 0.3s ease;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 6px;
+    }
+    .btn-maps { background: linear-gradient(135deg, #1e88e5, #1565c0); box-shadow: 0 4px 10px rgba(30,136,229,0.3); }
+    .btn-maps:hover { background: linear-gradient(135deg, #2196f3, #1976d2); transform: scale(1.02); }
+    
+    .btn-call { background: linear-gradient(135deg, #43a047, #2e7d32); box-shadow: 0 4px 10px rgba(67,160,71,0.3); }
+    .btn-call:hover { background: linear-gradient(135deg, #4caf50, #388e3c); transform: scale(1.02); }
+    
+    .btn-wp { background: linear-gradient(135deg, #25d366, #128c7e); box-shadow: 0 4px 10px rgba(37,211,102,0.3); }
+    .btn-wp:hover { background: linear-gradient(135deg, #2ae06d, #159f8e); transform: scale(1.02); }
+</style>
+""", unsafe_allow_html=True)
+
 st.title("🚚 Ersan Dizayn Rota Kontrol Merkezi")
 
 if 'harita_hazir' not in st.session_state:
@@ -38,11 +112,11 @@ with tab_kurulum:
 # --- SEKME 2: 🗺️ PLANLAMA VE HARİTA ---
 with tab_harita:
     
-    # 🌟 EKRAN HİYERARŞİSİ İÇİN 3 SABİT KUTU (Sıralama Asla Bozulmaz)
+    # 🌟 EKRAN HİYERARŞİSİ İÇİN 3 SABİT KUTU
     harita_kutusu = st.container()
-    st.markdown("---") # Araya çizgi
+    st.markdown("---") 
     ayarlar_kutusu = st.container()
-    st.markdown("---") # Araya çizgi
+    st.markdown("---") 
     liste_kutusu = st.container()
     
     # --- ORTA KISIM: AYARLAR VE BUTON ---
@@ -225,11 +299,11 @@ with tab_harita:
                                         popup_text = f"<b>Durak {idx+1}</b><br>{row['Alici_Ad']}<br>Tel: {row['Telefon']}"
                                         
                                         if idx == 0:
-                                            renk_hex = '#43a047' 
+                                            renk_hex = '#4caf50' 
                                         elif idx == len(sirali_df)-1:
-                                            renk_hex = '#ff4b4b' 
+                                            renk_hex = '#ff5252' 
                                         else:
-                                            renk_hex = '#1e88e5' 
+                                            renk_hex = '#2196f3' 
                                             
                                         marker_html = f'''
                                         <div style="background-color: {renk_hex}; color: white; border-radius: 50%; width: 26px; height: 26px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 13px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.5);">
@@ -267,7 +341,6 @@ with tab_harita:
         with harita_kutusu:
             st.success("✅ Rota başarıyla hesaplandı! Aşağıdan yeni güzergahı inceleyebilirsiniz.")
             
-            # Haritayı tam genişlikte gösteriyoruz
             folium_static(st.session_state.m, width=1200, height=500)
             st.download_button(
                 label="📥 Optimize Edilmiş Rotayı Excel Olarak İndir",
@@ -281,7 +354,6 @@ with tab_harita:
         with liste_kutusu:
             st.markdown("### 📱 Teslimat Sırası (Şoför Modu)")
             
-            # Liste mobilde rahat kaydırılsın diye kutu içine alıyoruz
             with st.container(height=600):
                 for idx, row in st.session_state.sirali_df.iterrows():
                     durak_no = idx + 1
@@ -295,25 +367,47 @@ with tab_harita:
                         tel_temiz = "90" + tel_temiz
                     
                     if durak_no == 1:
-                        border_color, durak_etiketi = "#43a047", "BAŞLANGIÇ NOKTASI"
+                        border_color = "#4caf50" # Modern Yeşil
+                        durak_etiketi = "🟢 BAŞLANGIÇ"
                     elif durak_no == len(st.session_state.sirali_df):
-                        border_color, durak_etiketi = "#ff4b4b", "BİTİŞ NOKTASI"
+                        border_color = "#ff5252" # Modern Kırmızı
+                        durak_etiketi = "🔴 BİTİŞ"
                     else:
-                        border_color, durak_etiketi = "#1e88e5", "TESLİMAT"
+                        border_color = "#2196f3" # Modern Mavi
+                        durak_etiketi = "📦 TESLİMAT"
                     
+                    # Premium HTML Kart Tasarımı
                     kart_html = f"""
-<div style="background-color: #262730; padding: 15px; border-radius: 12px; margin-bottom: 15px; border-left: 6px solid {border_color}; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-<span style="background-color: {border_color}; color: white; padding: 4px 10px; border-radius: 20px; font-weight: bold; font-size: 14px;">{durak_no}</span>
-<span style="color: #9c9c9c; font-size: 12px; font-weight: bold;">{durak_etiketi}</span>
-</div>
-<div style="font-size: 18px; font-weight: bold; color: white; margin-bottom: 5px;">{row['Alici_Ad']}</div>
-<div style="font-size: 13px; color: #cfcfcf; margin-bottom: 15px; line-height: 1.4;">📍 {row['Adres']}</div>
-<div style="display: flex; gap: 8px;">
-<a href="https://www.google.com/maps/dir/?api=1&destination={lat},{lon}" target="_blank" style="flex: 1; background-color: #1e88e5; color: white; text-align: center; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px;">🗺️ Git</a>
-<a href="tel:{tel_temiz}" style="flex: 1; background-color: #43a047; color: white; text-align: center; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px;">📞 Ara</a>
-<a href="https://wa.me/{tel_temiz}" target="_blank" style="flex: 1; background-color: #25d366; color: white; text-align: center; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px;">💬 WP</a>
-</div>
-</div>
-"""
+                    <div class="premium-card" style="border-left: 6px solid {border_color};">
+                        
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span style="background-color: {border_color}; color: white; padding: 6px 12px; border-radius: 8px; font-weight: 800; font-size: 16px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+                                    #{durak_no}
+                                </span>
+                                <span style="color: #b0b0b0; font-size: 11px; font-weight: 700; letter-spacing: 1px;">{durak_etiketi}</span>
+                            </div>
+                        </div>
+
+                        <div style="font-size: 20px; font-weight: 700; color: #ffffff; margin-bottom: 6px; letter-spacing: 0.5px;">
+                            {row['Alici_Ad']}
+                        </div>
+                        <div style="font-size: 14px; color: #a0a0b0; margin-bottom: 20px; line-height: 1.5; display: flex; align-items: flex-start; gap: 6px;">
+                            <span style="font-size: 16px;">📍</span> 
+                            <span>{row['Adres']}</span>
+                        </div>
+
+                        <div style="display: flex; gap: 10px;">
+                            <a href="https://www.google.com/maps/dir/?api=1&destination={lat},{lon}" target="_blank" class="action-btn btn-maps">
+                                🗺️ Yol Tarifi
+                            </a>
+                            <a href="tel:{tel_temiz}" class="action-btn btn-call">
+                                📞 Ara
+                            </a>
+                            <a href="https://wa.me/{tel_temiz}" target="_blank" class="action-btn btn-wp">
+                                💬 WhatsApp
+                            </a>
+                        </div>
+                    </div>
+                    """
                     st.markdown(kart_html, unsafe_allow_html=True)
