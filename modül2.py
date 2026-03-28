@@ -14,8 +14,7 @@ from streamlit_geolocation import streamlit_geolocation
 # ==========================================
 # 🔑 GOOGLE MAPS API ANAHTARINI BURAYA YAZ 🔑
 # ==========================================
-GOOGLE_MAPS_API_KEY = "AIzaSyAbn2TCWJDpKimkoKKb0cNcGWQj9gUF-Mg"
-
+GOOGLE_MAPS_API_KEY = "BURAYA_KENDI_API_ANAHTARINI_YAZ"
 
 # 1. Panel Sayfa Ayarları
 st.set_page_config(page_title="Ersan Dizayn Rota Paneli", layout="wide", initial_sidebar_state="collapsed")
@@ -85,6 +84,7 @@ if 'awaiting_confirmation' not in st.session_state: st.session_state.awaiting_co
 if 'temp_selection' not in st.session_state: st.session_state.temp_selection = None
 if 'temp_lat' not in st.session_state: st.session_state.temp_lat = None
 if 'temp_lng' not in st.session_state: st.session_state.temp_lng = None
+if 'delivery_status' not in st.session_state: st.session_state.delivery_status = {} # Tıkla/Atla durumu için
 
 tab_kurulum, tab_harita = st.tabs(["📂 1. Veri Yükleme ve Doğrulama", "🗺️ 2. Planlama ve Harita"])
 
@@ -92,10 +92,8 @@ tab_kurulum, tab_harita = st.tabs(["📂 1. Veri Yükleme ve Doğrulama", "🗺�
 with tab_kurulum:
     st.markdown("### ⚙️ Sistem Kurulumu")
     
-    # Sadece dosya yükleme kutusu kaldı
     yuklenen_dosya_input = st.file_uploader("Sipariş Excel'i Yükle (.xlsx)", type=["xlsx"])
 
-    # EĞER DOSYA VARSA DOĞRULAMA SİHİRBAZINI BAŞLAT (API Key artık otomatik)
     if yuklenen_dosya_input:
         if GOOGLE_MAPS_API_KEY == "BURAYA_KENDI_API_ANAHTARINI_YAZ":
             st.error("⚠️ Lütfen kodun en üstündeki GOOGLE_MAPS_API_KEY değişkenine kendi API anahtarınızı yapıştırın!")
@@ -104,12 +102,10 @@ with tab_kurulum:
         if 'uploaded_filename' not in st.session_state or st.session_state.uploaded_filename != yuklenen_dosya_input.name:
             st.session_state.uploaded_filename = yuklenen_dosya_input.name
             
-            df_raw = pd.read_excel(yuklenen_dosya_input, usecols="B,H,I,J,P")
+            df_raw = pd.read_excel(yuklenen_dosya_input, usecols="G,H,I,J,P")
             df_raw.columns = ['Paket_No', 'Siparis_No', 'Alici_Ad', 'Adres', 'Telefon']
-            
             df_raw = df_raw.dropna(subset=['Adres']).reset_index(drop=True)
             
-            # .0 SORUNUNU ÇÖZEN KISIM (Float to String, gereksizleri silme)
             df_raw['Paket_No'] = df_raw['Paket_No'].astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '-')
             df_raw['Siparis_No'] = df_raw['Siparis_No'].astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '-')
             df_raw['Telefon'] = df_raw['Telefon'].astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '-')
@@ -123,7 +119,6 @@ with tab_kurulum:
             st.session_state.harita_hazir = False
             st.session_state.awaiting_confirmation = False
 
-        # SİHİRBAZ EKRANI
         if not st.session_state.validation_complete:
             df_raw = st.session_state.raw_df
             current = st.session_state.wizard_step
@@ -134,7 +129,6 @@ with tab_kurulum:
             st.markdown(f"### 📍 Adres Doğrulama Sihirbazı ({current + 1} / {total})")
             st.progress((current) / total)
             
-            # --- ONAY EKRANI MI YOKSA SEÇİM EKRANI MI? ---
             if not st.session_state.awaiting_confirmation:
                 # SEÇİM EKRANI
                 if 'current_step_memory' not in st.session_state or st.session_state.current_step_memory != current:
@@ -150,7 +144,7 @@ with tab_kurulum:
 """
                 st.markdown(html_secim, unsafe_allow_html=True)
 
-                yeni_arama = st.text_area("🔍 Harita bulamadıysa, adresi sadeleştirip (Örn: Bina ve daireyi silip sadece sokak bırakarak) Enter'a basın:", value=st.session_state.custom_search, height=100)
+                yeni_arama = st.text_area("🔍 Harita bulamadıysa, adresi sadeleştirip Enter'a basın:", value=st.session_state.custom_search, height=100)
                 if yeni_arama != st.session_state.custom_search:
                     st.session_state.custom_search = yeni_arama
                     st.rerun()
@@ -176,9 +170,9 @@ with tab_kurulum:
 
                 radio_list = [opt["label"] for opt in options]
                 radio_list.append("⚠️ Orijinal metni kullan (Sisteme bırak)")
-                radio_list.append("❌ Bu siparişi atla (Eksik/Hatalı Adres, Rotaya Ekleme)")
+                radio_list.append("❌ Bu siparişi atla (Rotaya Ekleme)")
 
-                secim = st.radio("👇 Haritaya pin atılacak konumu seçin (Şoförün gördüğü yazı değişmeyecek):", radio_list)
+                secim = st.radio("👇 Haritaya pin atılacak konumu seçin:", radio_list)
 
                 st.markdown("<br>", unsafe_allow_html=True)
                 colA, colB = st.columns(2)
@@ -190,7 +184,7 @@ with tab_kurulum:
                 with colB:
                     if st.button("Seçimi Onayla ve İleri ➡️", type="primary", use_container_width=True):
                         st.session_state.temp_selection = secim
-                        if secim not in ["❌ Bu siparişi atla (Eksik/Hatalı Adres, Rotaya Ekleme)", "⚠️ Orijinal metni kullan (Sisteme bırak)"]:
+                        if secim not in ["❌ Bu siparişi atla (Rotaya Ekleme)", "⚠️ Orijinal metni kullan (Sisteme bırak)"]:
                             selected_opt = next(item for item in options if item["label"] == secim)
                             st.session_state.temp_lat = selected_opt['lat']
                             st.session_state.temp_lng = selected_opt['lng']
@@ -198,26 +192,21 @@ with tab_kurulum:
                         st.rerun()
 
             else:
-                # ONAY EKRANI
+                # MOBİL DOSTU ONAY EKRANI (Html kaymalarını engelledik, Streamlit'in yerel kutularını kullandık)
                 secim = st.session_state.temp_selection
                 
-                st.markdown("""<div style="background-color: #1e1e24; padding: 25px; border-radius: 12px; border: 2px solid #4caf50; box-shadow: 0 8px 16px rgba(0,0,0,0.3);">
-<h3 style="color: #4caf50; margin-top: 0; text-align: center;">✅ Sipariş Detay Onayı</h3>
-<hr style="border-color: #333;">""", unsafe_allow_html=True)
-
-                st.markdown(f"📦 **Paket No:** `{row['Paket_No']}`")
-                st.markdown(f"📑 **Sipariş No:** `{row['Siparis_No']}`")
-                st.markdown(f"📞 **Telefon:** `{row['Telefon']}`")
+                st.success("✅ **Sipariş Detay Onayı** (Teyit Ekranı)")
                 
-                yeni_musteri_adi = st.text_input("👤 Müşteri Adı (Yanlışsa buradan düzeltebilirsiniz):", value=row['Alici_Ad'])
+                c_paket, c_siparis, c_tel = st.columns(3)
+                c_paket.markdown(f"📦 **Paket No:**\n`{row['Paket_No']}`")
+                c_siparis.markdown(f"📑 **Sipariş No:**\n`{row['Siparis_No']}`")
+                c_tel.markdown(f"📞 **Telefon:**\n`{row['Telefon']}`")
                 
-                html_onay_alt = f"""
-<hr style="border-color: #333;">
-<p style="color: #ccc; margin-bottom: 8px; font-size: 14px;">📝 <b>Excel'deki Adres:</b><br>{row['Adres']}</p>
-<p style="color: #2196f3; font-weight: bold; margin-bottom: 0; font-size: 15px;">📍 <b>Haritada Seçilen Hedef:</b><br>{secim}</p>
-</div>
-"""
-                st.markdown(html_onay_alt, unsafe_allow_html=True)
+                st.markdown("---")
+                yeni_musteri_adi = st.text_input("👤 Müşteri Adı (Yanlışsa düzeltebilirsiniz):", value=row['Alici_Ad'])
+                
+                st.info(f"📝 **Excel'deki Adres:**\n\n{row['Adres']}")
+                st.warning(f"📍 **Haritada Seçilen Hedef:**\n\n{secim}")
                 
                 st.markdown("<br>", unsafe_allow_html=True)
                 colA, colB = st.columns(2)
@@ -227,7 +216,7 @@ with tab_kurulum:
                         st.rerun()
                 with colB:
                     if st.button("✅ BİLGİLER DOĞRU, SIRADAKİNE GEÇ", type="primary", use_container_width=True):
-                        if secim == "❌ Bu siparişi atla (Eksik/Hatalı Adres, Rotaya Ekleme)":
+                        if secim == "❌ Bu siparişi atla (Rotaya Ekleme)":
                             pass 
                         elif secim == "⚠️ Orijinal metni kullan (Sisteme bırak)":
                             row_dict = row.to_dict()
@@ -526,6 +515,11 @@ with tab_harita:
                                     st.session_state.m = m
                                     st.session_state.sirali_df = sirali_df 
                                     
+                                    # Rotayı hesapladığımızda durumları sıfırlayalım ki eski işlemler kalmasın
+                                    st.session_state.delivery_status = {}
+                                    for g_id in sirali_df['Gizli_ID'].unique():
+                                        st.session_state.delivery_status[g_id] = "pending"
+                                        
                                     buffer = io.BytesIO()
                                     with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
                                         sirali_df.to_excel(writer, index=False)
@@ -556,37 +550,51 @@ with tab_harita:
                 mime="application/vnd.ms-excel"
             )
 
-    # --- ALT KISIM: ŞOFÖR MODU BÖLÜMÜ ---
+    # --- ALT KISIM: ŞOFÖR MODU BÖLÜMÜ (Tıkla-Kaybol Sistemi) ---
     if st.session_state.harita_hazir:
         with liste_kutusu:
             st.markdown("### 📱 Teslimat Sırası (Şoför Modu)")
             
-            with st.container(height=600):
-                for idx, row in st.session_state.sirali_df.iterrows():
-                    durak_no = idx + 1
-                    lat = row['Enlem']
-                    lon = row['Boylam']
-                    
-                    # Temiz Telefon (Sadece Rakamlar)
-                    tel_temiz = "".join(filter(str.isdigit, str(row['Telefon'])))
-                    if tel_temiz.startswith("0"):
-                        tel_temiz = "9" + tel_temiz
-                    if not tel_temiz.startswith("90") and len(tel_temiz) == 10:
-                        tel_temiz = "90" + tel_temiz
-                    
-                    if durak_no == 1:
-                        border_color = "#4caf50" 
-                        durak_etiketi = "🟢 BAŞLANGIÇ"
-                    elif durak_no == len(st.session_state.sirali_df):
-                        border_color = "#ff5252" 
-                        durak_etiketi = "🔴 BİTİŞ"
+            pending_orders = []
+            completed_orders = []
+            
+            for idx, row in st.session_state.sirali_df.iterrows():
+                g_id = row['Gizli_ID']
+                
+                # Başlangıç ve bitiş rotalarına onay istemeyiz, bu yüzden status'ü "start_end" yapıyoruz.
+                if g_id == '-':
+                    pending_orders.append((idx, row, 'start_end'))
+                else:
+                    status = st.session_state.delivery_status.get(g_id, "pending")
+                    if status == "pending":
+                        pending_orders.append((idx, row, 'pending'))
                     else:
-                        border_color = "#2196f3" 
-                        durak_etiketi = "📦 TESLİMAT"
-                    
-                    # STREAMLIT HATASINI ENGELLEMEK İÇİN SOLA YASLI TEK PARÇA HTML
-                    kart_html = f"""
-<div style="background: linear-gradient(145deg, #22232a, #2a2b33); padding: 20px; border-radius: 16px; margin-bottom: 20px; border-left: 6px solid {border_color}; box-shadow: 0 8px 20px rgba(0,0,0,0.15);">
+                        completed_orders.append((idx, row, status))
+                        
+            # --------- 1. GİDİLECEK DURAKLAR (BEKLEYENLER) ---------
+            st.markdown("#### ⏳ Bekleyen Duraklar")
+            for idx, row, status in pending_orders:
+                durak_no = idx + 1
+                lat = row['Enlem']
+                lon = row['Boylam']
+                g_id = row['Gizli_ID']
+                
+                tel_temiz = "".join(filter(str.isdigit, str(row['Telefon'])))
+                if tel_temiz.startswith("0"): tel_temiz = "9" + tel_temiz
+                if not tel_temiz.startswith("90") and len(tel_temiz) == 10: tel_temiz = "90" + tel_temiz
+                
+                if durak_no == 1:
+                    border_color = "#4caf50" 
+                    durak_etiketi = "🟢 BAŞLANGIÇ"
+                elif durak_no == len(st.session_state.sirali_df):
+                    border_color = "#ff5252" 
+                    durak_etiketi = "🔴 BİTİŞ"
+                else:
+                    border_color = "#2196f3" 
+                    durak_etiketi = "📦 TESLİMAT"
+                
+                kart_html = f"""
+<div style="background: linear-gradient(145deg, #22232a, #2a2b33); padding: 20px; border-radius: 16px; margin-bottom: 10px; border-left: 6px solid {border_color}; box-shadow: 0 8px 20px rgba(0,0,0,0.15);">
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
 <div style="display: flex; align-items: center; gap: 10px;">
 <span style="background-color: {border_color}; color: white; padding: 6px 12px; border-radius: 8px; font-weight: 800; font-size: 16px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">#{durak_no}</span>
@@ -594,7 +602,7 @@ with tab_harita:
 </div>
 </div>
 <div style="font-size: 20px; font-weight: 700; color: #ffffff; margin-bottom: 6px; letter-spacing: 0.5px;">{row['Alici_Ad']}</div>
-<div style="font-size: 13px; color: #b0b0b0; margin-bottom: 6px;">📦 Paket No: {row['Paket_No']} &nbsp;|&nbsp; 📑 Sipariş: {row['Siparis_No']}</div>
+<div style="font-size: 13px; color: #b0b0b0; margin-bottom: 6px;">📦 Paket No: {row['Paket_No']}  |  📑 Sipariş: {row['Siparis_No']}</div>
 <div style="font-size: 14px; color: #a0a0b0; margin-bottom: 20px; line-height: 1.5; display: flex; align-items: flex-start; gap: 6px;">
 <span style="font-size: 16px;">📍</span><span>{row['Adres']}</span>
 </div>
@@ -605,4 +613,54 @@ with tab_harita:
 </div>
 </div>
 """
-                    st.markdown(kart_html, unsafe_allow_html=True)
+                st.markdown(kart_html, unsafe_allow_html=True)
+                
+                # Sadece müşterilerde onay butonu çıkar (Başlangıç veya bitiş depo ise çıkmaz)
+                if status == 'pending':
+                    col_ok, col_fail = st.columns(2)
+                    if col_ok.button("✅ Teslim Edildi", key=f"ok_{g_id}", use_container_width=True):
+                        st.session_state.delivery_status[g_id] = "success"
+                        st.rerun()
+                    if col_fail.button("❌ İptal / Edilemedi", key=f"fail_{g_id}", use_container_width=True):
+                        st.session_state.delivery_status[g_id] = "failed"
+                        st.rerun()
+                    st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
+                    
+
+            # --------- 2. TAMAMLANANLAR LİSTESİ ---------
+            if len(completed_orders) > 0:
+                st.markdown("---")
+                st.markdown("#### 🏁 Tamamlanan İşlemler")
+                
+                for idx, row, status in completed_orders:
+                    durak_no = idx + 1
+                    g_id = row['Gizli_ID']
+                    
+                    if status == "success":
+                        bg_grad = "linear-gradient(145deg, #1b2e1f, #223827)"
+                        border_color = "#4caf50"
+                        durak_etiketi = "✅ TESLİM EDİLDİ"
+                    else:
+                        bg_grad = "linear-gradient(145deg, #2e1b1b, #382222)"
+                        border_color = "#ff5252"
+                        durak_etiketi = "❌ EDİLEMEDİ"
+                        
+                    kart_html_comp = f"""
+<div style="background: {bg_grad}; padding: 15px; border-radius: 12px; margin-bottom: 10px; border-left: 6px solid {border_color}; opacity: 0.8;">
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+<div style="display: flex; align-items: center; gap: 10px;">
+<span style="background-color: {border_color}; color: white; padding: 4px 10px; border-radius: 8px; font-weight: 800; font-size: 14px;">#{durak_no}</span>
+<span style="color: white; font-size: 12px; font-weight: 700; letter-spacing: 1px;">{durak_etiketi}</span>
+</div>
+</div>
+<div style="font-size: 18px; font-weight: 700; color: #ffffff; margin-bottom: 4px;"><del>{row['Alici_Ad']}</del></div>
+<div style="font-size: 12px; color: #b0b0b0;">📍 {str(row['Adres'])[:50]}...</div>
+</div>
+"""
+                    st.markdown(kart_html_comp, unsafe_allow_html=True)
+                    
+                    # Şoför yanlışlıkla basarsa diye geri alma butonu
+                    if st.button("↩️ İşlemi Geri Al", key=f"undo_{g_id}", use_container_width=True):
+                        st.session_state.delivery_status[g_id] = "pending"
+                        st.rerun()
+                    st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
