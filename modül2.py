@@ -376,38 +376,35 @@ with tab_harita:
                         border_color = "#2196f3" # Modern Mavi
                         durak_etiketi = "📦 TESLİMAT"
                     
-                    # Premium HTML Kart Tasarımı
+                    # Premium HTML Kart Tasarımı (Sola Yaslandı - Markdown hatasını çözer)
                     kart_html = f"""
-                    <div class="premium-card" style="border-left: 6px solid {border_color};">
-                        
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <span style="background-color: {border_color}; color: white; padding: 6px 12px; border-radius: 8px; font-weight: 800; font-size: 16px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
-                                    #{durak_no}
-                                </span>
-                                <span style="color: #b0b0b0; font-size: 11px; font-weight: 700; letter-spacing: 1px;">{durak_etiketi}</span>
-                            </div>
-                        </div>
-
-                        <div style="font-size: 20px; font-weight: 700; color: #ffffff; margin-bottom: 6px; letter-spacing: 0.5px;">
-                            {row['Alici_Ad']}
-                        </div>
-                        <div style="font-size: 14px; color: #a0a0b0; margin-bottom: 20px; line-height: 1.5; display: flex; align-items: flex-start; gap: 6px;">
-                            <span style="font-size: 16px;">📍</span> 
-                            <span>{row['Adres']}</span>
-                        </div>
-
-                        <div style="display: flex; gap: 10px;">
-                            <a href="https://www.google.com/maps/dir/?api=1&destination={lat},{lon}" target="_blank" class="action-btn btn-maps">
-                                🗺️ Yol Tarifi
-                            </a>
-                            <a href="tel:{tel_temiz}" class="action-btn btn-call">
-                                📞 Ara
-                            </a>
-                            <a href="https://wa.me/{tel_temiz}" target="_blank" class="action-btn btn-wp">
-                                💬 WhatsApp
-                            </a>
-                        </div>
-                    </div>
-                    """
+<div class="premium-card" style="border-left: 6px solid {border_color};">
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+<div style="display: flex; align-items: center; gap: 10px;">
+<span style="background-color: {border_color}; color: white; padding: 6px 12px; border-radius: 8px; font-weight: 800; font-size: 16px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+#{durak_no}
+</span>
+<span style="color: #b0b0b0; font-size: 11px; font-weight: 700; letter-spacing: 1px;">{durak_etiketi}</span>
+</div>
+</div>
+<div style="font-size: 20px; font-weight: 700; color: #ffffff; margin-bottom: 6px; letter-spacing: 0.5px;">
+{row['Alici_Ad']}
+</div>
+<div style="font-size: 14px; color: #a0a0b0; margin-bottom: 20px; line-height: 1.5; display: flex; align-items: flex-start; gap: 6px;">
+<span style="font-size: 16px;">📍</span> 
+<span>{row['Adres']}</span>
+</div>
+<div style="display: flex; gap: 10px;">
+<a href="https://www.google.com/maps/dir/?api=1&destination={lat},{lon}" target="_blank" class="action-btn btn-maps">
+🗺️ Yol Tarifi
+</a>
+<a href="tel:{tel_temiz}" class="action-btn btn-call">
+📞 Ara
+</a>
+<a href="https://wa.me/{tel_temiz}" target="_blank" class="action-btn btn-wp">
+💬 WhatsApp
+</a>
+</div>
+</div>
+"""
                     st.markdown(kart_html, unsafe_allow_html=True)
