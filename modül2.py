@@ -49,7 +49,7 @@ st.markdown("""
         box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
     }
     
-    /* Aksiyon Butonları (Yol Tarifi vb) */
+    /* Aksiyon Butonları */
     .action-btn {
         flex: 1;
         text-align: center;
@@ -143,63 +143,43 @@ def get_candidates(api_key, address):
                     "lng": r['geometry']['location']['lng']
                 })
 
-    # 1. Aşama: Normal Arama
-    try: 
-        add_result(gmaps.geocode(f"{address}, Türkiye"))
-    except: 
-        pass
+    try: add_result(gmaps.geocode(f"{address}, Türkiye"))
+    except: pass
 
-    # 2. Aşama: Temizlenmiş Arama
     if len(candidates) < 4:
         try:
             temiz_adres = re.sub(r'(?i)\b(no|numara|d|daire|kat|blok|iç kapı)\b\s*[:.]?\s*\d*[/a-zA-Z\d-]*', '', address)
             temiz_adres = temiz_adres.replace("/", " ").replace("-", " ")
             if temiz_adres.strip() != address.strip():
                 add_result(gmaps.geocode(f"{temiz_adres.strip()}, Türkiye"))
-        except: 
-            pass
+        except: pass
     
-    # 3. Aşama: Bölgesel Arama
     if len(candidates) < 4:
         try:
             kelimeler = address.replace(',', ' ').split()
             if len(kelimeler) > 3:
                 son_kisim = " ".join(kelimeler[-4:])
                 add_result(gmaps.geocode(f"{son_kisim}, Türkiye"))
-        except: 
-            pass
+        except: pass
 
     return candidates
 
 st.title("🚚 Ersan Dizayn Rota Kontrol Merkezi")
 
-# ==========================================
 # SESSION STATE DEĞİŞKENLERİ
-# ==========================================
-if 'harita_hazir' not in st.session_state: 
-    st.session_state.harita_hazir = False
-if 'wizard_step' not in st.session_state: 
-    st.session_state.wizard_step = 0
-if 'validated_data' not in st.session_state: 
-    st.session_state.validated_data = []
-if 'validation_complete' not in st.session_state: 
-    st.session_state.validation_complete = False
-if 'awaiting_confirmation' not in st.session_state: 
-    st.session_state.awaiting_confirmation = False
-if 'temp_selection' not in st.session_state: 
-    st.session_state.temp_selection = None
-if 'temp_lat' not in st.session_state: 
-    st.session_state.temp_lat = None
-if 'temp_lng' not in st.session_state: 
-    st.session_state.temp_lng = None
-if 'delivery_status' not in st.session_state: 
-    st.session_state.delivery_status = {} 
+if 'harita_hazir' not in st.session_state: st.session_state.harita_hazir = False
+if 'wizard_step' not in st.session_state: st.session_state.wizard_step = 0
+if 'validated_data' not in st.session_state: st.session_state.validated_data = []
+if 'validation_complete' not in st.session_state: st.session_state.validation_complete = False
+if 'awaiting_confirmation' not in st.session_state: st.session_state.awaiting_confirmation = False
+if 'temp_selection' not in st.session_state: st.session_state.temp_selection = None
+if 'temp_lat' not in st.session_state: st.session_state.temp_lat = None
+if 'temp_lng' not in st.session_state: st.session_state.temp_lng = None
+if 'delivery_status' not in st.session_state: st.session_state.delivery_status = {} 
 if 'df_validated' not in st.session_state: 
     st.session_state.df_validated = pd.DataFrame(columns=['Paket_No', 'Siparis_No', 'Alici_Ad', 'Adres', 'Telefon', 'Gizli_ID', 'Onayli_Enlem', 'Onayli_Boylam'])
-if 'manual_search_results' not in st.session_state: 
-    st.session_state.manual_search_results = []
-if 'manual_selected' not in st.session_state: 
-    st.session_state.manual_selected = None
+if 'manual_search_results' not in st.session_state: st.session_state.manual_search_results = []
+if 'manual_selected' not in st.session_state: st.session_state.manual_selected = None
 
 tab_kurulum, tab_harita = st.tabs(["📂 1. Veri Yükleme ve Doğrulama", "🗺️ 2. Planlama ve Harita"])
 
@@ -255,7 +235,8 @@ with tab_kurulum:
 </div>
 """
                 st.markdown(html_secim, unsafe_allow_html=True)
-                st.info("💡 **TÜYO:** Çok az seçenek çıkıyorsa, bina numarası ve daireyi silip sadece **Sokak/Mahalle/İlçe** bırakıp Enter'a basın.")
+
+                st.info("💡 **TÜYO:** Eğer altta çok az seçenek çıkıyorsa, aşağıdaki kutudan bina numarasını ve daireyi silip sadece **Sokak/Mahalle/İlçe** bırakıp Enter'a basın.")
                 yeni_arama = st.text_area("🔍 Adresi sadeleştirip tekrar ara (Enter'a bas):", value=st.session_state.custom_search, height=80)
                 
                 if yeni_arama != st.session_state.custom_search:
@@ -292,7 +273,6 @@ with tab_kurulum:
                     st.rerun()
 
             else:
-                # ONAY EKRANI
                 secim = st.session_state.temp_selection
                 st.success("✅ **Sipariş Detay Onayı** (Teyit Ekranı)")
                 
@@ -349,7 +329,6 @@ with tab_harita:
     st.markdown("---") 
     liste_kutusu = st.container()
     
-    # ➕ MANUEL SİPARİŞ EKLEME KUTUSU
     with manuel_ekleme_kutusu:
         with st.expander("➕ MANUEL SİPARİŞ / YENİ ADRES EKLE (Tıkla Aç)", expanded=False):
             st.markdown("WhatsApp'tan vb. gelen anlık siparişleri Excel'e dokunmadan buradan ekleyebilirsiniz.")
@@ -410,7 +389,6 @@ with tab_harita:
                         st.success("✅ Eklendi! Rotayı yeniden hesaplayabilirsiniz.")
                         st.rerun()
 
-    # 🔄 ROTA AYARLARI VE HESAPLAMA
     with ayarlar_kutusu:
         st.markdown("### 🔄 Rota Ayarları (Yeniden Planla)")
         if len(st.session_state.df_validated) == 0:
@@ -501,7 +479,6 @@ with tab_harita:
 
                                 nodes = []
                                 
-                                # Başlangıç Düğümü
                                 if start_tip != "musteri":
                                     if start_tip == "depo":
                                         s_ad, s_adres = "🏢 DEPO", "Ersan Dizayn, İstanbul"
@@ -513,7 +490,6 @@ with tab_harita:
                                     nodes.append({'Siparis_No': 'START', 'Paket_No': '-', 'Gizli_ID': '-', 'Alici_Ad': s_ad, 'Adres': s_adres, 'Telefon': '-'})
                                     start_node_index = 0
 
-                                # Bitiş Düğümü
                                 if not ring_rotasi and end_tip != "musteri":
                                     if end_tip == "depo":
                                         e_ad, e_adres = "🏢 DEPO", "Ersan Dizayn, İstanbul"
@@ -541,7 +517,6 @@ with tab_harita:
                                 df_all = pd.DataFrame(nodes)
                                 enlemler, boylamlar, gecerli_indeksler = [], [], []
 
-                                # Koordinatları Çözme
                                 for i, adres in enumerate(df_all['Adres']):
                                     lat, lon = 0.0, 0.0
                                     gizli_id = df_all['Gizli_ID'].iloc[i]
@@ -625,7 +600,6 @@ with tab_harita:
                                     sirali_df = df_filtered.iloc[rota_sirasi].copy().reset_index(drop=True)
                                     st.session_state.sirali_df = sirali_df 
                                     
-                                    # Teslimat Durumlarını Sıfırlama
                                     st.session_state.delivery_status = {}
                                     for g_id in sirali_df['Gizli_ID'].unique():
                                         st.session_state.delivery_status[g_id] = "pending"
@@ -649,7 +623,6 @@ with tab_harita:
     # --- ÜST KISIM: HARİTA BÖLÜMÜ VE SEVKİYAT KONTROLÜ ---
     if st.session_state.harita_hazir:
         with harita_kutusu:
-            # 🏁 SEVKİYAT BİTTİ Mİ KONTROLÜ
             pending_count = 0
             total_customers = 0
             
@@ -771,47 +744,56 @@ with tab_harita:
                 
                 # 🌟 ONAY VE MANUEL SIRALAMA BUTONLARI
                 if status == 'pending':
-                    c_ok, c_fail, c_sira, c_tasi = st.columns([5, 5, 4, 3])
-                    
-                    with c_ok:
-                        if st.button("✅ Teslim Edildi", key=f"ok_{g_id}", use_container_width=True):
-                            st.session_state.delivery_status[g_id] = "success"
-                            st.rerun()
-                            
-                    with c_fail:
-                        if st.button("❌ İptal / Edilemedi", key=f"fail_{g_id}", use_container_width=True):
-                            st.session_state.delivery_status[g_id] = "failed"
-                            st.rerun()
-                    
-                    with c_sira:
-                        # Maksimum değeri hesaplayarak Başlangıç ve Bitişi koruma altına alıyoruz
-                        maks_durak = max(2, len(st.session_state.sirali_df) - 1)
-                        hedef_sira = st.number_input("Sıra No", min_value=2, max_value=maks_durak, value=durak_no, key=f"sira_{g_id}", label_visibility="collapsed")
-                    
-                    with c_tasi:
-                        if st.button("🔄 Taşı", key=f"move_{g_id}", use_container_width=True):
-                            eski_idx = idx
-                            yeni_idx = hedef_sira - 1
-                            
-                            # Eğer yer değişikliği gerçekten varsa işlem yap
-                            if eski_idx != yeni_idx:
-                                # DataFrame'den o satırı kesip yeni yere yapıştırıyoruz
-                                row_to_move = st.session_state.sirali_df.iloc[eski_idx:eski_idx+1]
-                                df_temp = st.session_state.sirali_df.drop(st.session_state.sirali_df.index[eski_idx])
+                    # GÜVENLİK DUVARI: 1. Durak ve Son Durak taşınamaz!
+                    if 1 < durak_no < len(st.session_state.sirali_df):
+                        c_ok, c_fail, c_sira, c_tasi = st.columns([5, 5, 4, 3])
+                        
+                        with c_ok:
+                            if st.button("✅ Teslim Edildi", key=f"ok_{g_id}", use_container_width=True):
+                                st.session_state.delivery_status[g_id] = "success"
+                                st.rerun()
                                 
-                                df_top = df_temp.iloc[:yeni_idx]
-                                df_bottom = df_temp.iloc[yeni_idx:]
+                        with c_fail:
+                            if st.button("❌ İptal / Edilemedi", key=f"fail_{g_id}", use_container_width=True):
+                                st.session_state.delivery_status[g_id] = "failed"
+                                st.rerun()
+                        
+                        with c_sira:
+                            maks_durak = max(2, len(st.session_state.sirali_df) - 1)
+                            hedef_sira = st.number_input("Sıra No", min_value=2, max_value=maks_durak, value=durak_no, key=f"sira_{g_id}", label_visibility="collapsed")
+                        
+                        with c_tasi:
+                            if st.button("🔄 Taşı", key=f"move_{g_id}", use_container_width=True):
+                                eski_idx = idx
+                                yeni_idx = hedef_sira - 1
                                 
-                                st.session_state.sirali_df = pd.concat([df_top, row_to_move, df_bottom]).reset_index(drop=True)
-                                
-                                # EXCEL'İ DE YENİ ROTAYA GÖRE GÜNCELLE
-                                buffer = io.BytesIO()
-                                with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-                                    st.session_state.sirali_df.to_excel(writer, index=False)
+                                if eski_idx != yeni_idx:
+                                    row_to_move = st.session_state.sirali_df.iloc[eski_idx:eski_idx+1]
+                                    df_temp = st.session_state.sirali_df.drop(st.session_state.sirali_df.index[eski_idx])
                                     
-                                st.session_state.buffer = buffer
-                                st.rerun() # UI'yi anında günceller
-                    
+                                    df_top = df_temp.iloc[:yeni_idx]
+                                    df_bottom = df_temp.iloc[yeni_idx:]
+                                    
+                                    st.session_state.sirali_df = pd.concat([df_top, row_to_move, df_bottom]).reset_index(drop=True)
+                                    
+                                    buffer = io.BytesIO()
+                                    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+                                        st.session_state.sirali_df.to_excel(writer, index=False)
+                                        
+                                    st.session_state.buffer = buffer
+                                    st.rerun() 
+                    else:
+                        # 1. veya Son duraksa, sadece Teslim Edildi / İptal çıkar. Taşıma kutusu görünmez.
+                        c_ok, c_fail = st.columns(2)
+                        with c_ok:
+                            if st.button("✅ Teslim Edildi", key=f"ok_{g_id}", use_container_width=True):
+                                st.session_state.delivery_status[g_id] = "success"
+                                st.rerun()
+                        with c_fail:
+                            if st.button("❌ İptal / Edilemedi", key=f"fail_{g_id}", use_container_width=True):
+                                st.session_state.delivery_status[g_id] = "failed"
+                                st.rerun()
+
                     st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
 
             # --------- 2. TAMAMLANANLAR LİSTESİ ---------
