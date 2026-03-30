@@ -102,7 +102,7 @@ st.markdown("""
         background: linear-gradient(135deg, #2196f3, #1976d2);
     }
 
-    /* 🌟 PREMIUM SIRA GİRİŞ KUTUSU TASARIMI 🌟 */
+    /* PREMIUM SIRA GİRİŞ KUTUSU TASARIMI */
     div[data-testid="stNumberInput"] > div > div > input {
         background-color: #2b2b36 !important;
         color: white !important;
@@ -118,7 +118,6 @@ st.markdown("""
         border-color: #1e88e5 !important;
         box-shadow: 0 0 8px rgba(30,136,229,0.5) !important;
     }
-    /* Kutu İçindeki O Çirkin Artı Eksi (+) (-) Butonlarını Gizle */
     div[data-testid="stNumberInputStepUp"], div[data-testid="stNumberInputStepDown"] {
         display: none !important;
     }
@@ -143,8 +142,10 @@ def get_candidates(api_key, address):
                     "lng": r['geometry']['location']['lng']
                 })
 
-    try: add_result(gmaps.geocode(f"{address}, Türkiye"))
-    except: pass
+    try: 
+        add_result(gmaps.geocode(f"{address}, Türkiye"))
+    except: 
+        pass
 
     if len(candidates) < 4:
         try:
@@ -152,7 +153,8 @@ def get_candidates(api_key, address):
             temiz_adres = temiz_adres.replace("/", " ").replace("-", " ")
             if temiz_adres.strip() != address.strip():
                 add_result(gmaps.geocode(f"{temiz_adres.strip()}, Türkiye"))
-        except: pass
+        except: 
+            pass
     
     if len(candidates) < 4:
         try:
@@ -160,13 +162,16 @@ def get_candidates(api_key, address):
             if len(kelimeler) > 3:
                 son_kisim = " ".join(kelimeler[-4:])
                 add_result(gmaps.geocode(f"{son_kisim}, Türkiye"))
-        except: pass
+        except: 
+            pass
 
     return candidates
 
 st.title("🚚 Ersan Dizayn Rota Kontrol Merkezi")
 
+# ==========================================
 # SESSION STATE DEĞİŞKENLERİ
+# ==========================================
 if 'harita_hazir' not in st.session_state: st.session_state.harita_hazir = False
 if 'wizard_step' not in st.session_state: st.session_state.wizard_step = 0
 if 'validated_data' not in st.session_state: st.session_state.validated_data = []
@@ -177,7 +182,7 @@ if 'temp_lat' not in st.session_state: st.session_state.temp_lat = None
 if 'temp_lng' not in st.session_state: st.session_state.temp_lng = None
 if 'delivery_status' not in st.session_state: st.session_state.delivery_status = {} 
 if 'df_validated' not in st.session_state: 
-    st.session_state.df_validated = pd.DataFrame(columns=['Paket_No', 'Siparis_No', 'Alici_Ad', 'Adres', 'Telefon', 'Gizli_ID', 'Onayli_Enlem', 'Onayli_Boylam'])
+    st.session_state.df_validated = pd.DataFrame(columns=['Paket_No', 'Siparis_No', 'Alici_Ad', 'Adres', 'Urun_Adi', 'Adet', 'Telefon', 'Gizli_ID', 'Onayli_Enlem', 'Onayli_Boylam'])
 if 'manual_search_results' not in st.session_state: st.session_state.manual_search_results = []
 if 'manual_selected' not in st.session_state: st.session_state.manual_selected = None
 
@@ -196,13 +201,22 @@ with tab_kurulum:
         if 'uploaded_filename' not in st.session_state or st.session_state.uploaded_filename != yuklenen_dosya_input.name:
             st.session_state.uploaded_filename = yuklenen_dosya_input.name
             
-            df_raw = pd.read_excel(yuklenen_dosya_input, usecols="G,H,I,J,P")
-            df_raw.columns = ['Paket_No', 'Siparis_No', 'Alici_Ad', 'Adres', 'Telefon']
+            try:
+                # DİKKAT: K Sütunu = Ürün Adı, L Sütunu = Adet olarak varsayıldı.
+                df_raw = pd.read_excel(yuklenen_dosya_input, usecols="B,H,I,J,N,O,P")
+                df_raw.columns = ['Paket_No', 'Siparis_No', 'Alici_Ad', 'Adres', 'Urun_Adi', 'Adet', 'Telefon']
+            except ValueError:
+                st.error("❌ Excel sütunları eşleşmedi! Kodun 172. satırındaki 'usecols=\"G,H,I,J,K,L,P\"' kısmını, Excel'inizdeki Ürün Adı ve Adet sütun harflerine göre düzeltin.")
+                st.stop()
+                
             df_raw = df_raw.dropna(subset=['Adres']).reset_index(drop=True)
             
             df_raw['Paket_No'] = df_raw['Paket_No'].astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '-')
             df_raw['Siparis_No'] = df_raw['Siparis_No'].astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '-')
             df_raw['Telefon'] = df_raw['Telefon'].astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '-')
+            df_raw['Urun_Adi'] = df_raw['Urun_Adi'].astype(str).replace('nan', '-')
+            df_raw['Adet'] = df_raw['Adet'].astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '1')
+            
             df_raw['Gizli_ID'] = df_raw.index + 1
             
             st.session_state.raw_df = df_raw
@@ -227,16 +241,21 @@ with tab_kurulum:
                     st.session_state.current_step_memory = current
                     st.session_state.custom_search = str(row['Adres']).replace("\n", " ")
                 
+                # SİHİRBAZDA DA ÜRÜN VE ADETİ BÜYÜK GÖSTERİYORUZ
                 html_secim = f"""
 <div style="background-color: #2b2b36; padding: 20px; border-radius: 12px; margin-bottom: 20px; border-left: 5px solid #1e88e5;">
-<div style="font-size: 18px; font-weight: bold; color: white;">👤 {row['Alici_Ad']}</div>
-<div style="color: #4caf50; font-size: 12px; font-weight: bold; margin-top: 8px; margin-bottom: 4px;">ŞOFÖRÜN GÖRECEĞİ ADRES:</div>
-<div style="color: #e0e0e0; font-size: 15px;">{row['Adres']}</div>
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+        <div style="font-size: 18px; font-weight: bold; color: white; flex: 1;">👤 {row['Alici_Ad']}</div>
+        <div style="text-align: right; background: rgba(255, 193, 7, 0.15); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(255, 193, 7, 0.3); margin-left: 10px;">
+            <span style="font-size: 18px; font-weight: 900; color: #ffc107;">{row['Adet']}x</span> <span style="font-size: 14px; font-weight: 700; color: #fffde7;">{row['Urun_Adi']}</span>
+        </div>
+    </div>
+    <div style="color: #4caf50; font-size: 12px; font-weight: bold; margin-top: 12px; margin-bottom: 4px;">ŞOFÖRÜN GÖRECEĞİ ADRES:</div>
+    <div style="color: #e0e0e0; font-size: 15px;">{row['Adres']}</div>
 </div>
 """
                 st.markdown(html_secim, unsafe_allow_html=True)
-
-                st.info("💡 **TÜYO:** Eğer altta çok az seçenek çıkıyorsa, aşağıdaki kutudan bina numarasını ve daireyi silip sadece **Sokak/Mahalle/İlçe** bırakıp Enter'a basın.")
+                st.info("💡 **TÜYO:** Çok az seçenek çıkıyorsa, bina numarası ve daireyi silip sadece **Sokak/Mahalle/İlçe** bırakıp Enter'a basın.")
                 yeni_arama = st.text_area("🔍 Adresi sadeleştirip tekrar ara (Enter'a bas):", value=st.session_state.custom_search, height=80)
                 
                 if yeni_arama != st.session_state.custom_search:
@@ -273,6 +292,7 @@ with tab_kurulum:
                     st.rerun()
 
             else:
+                # ONAY EKRANI
                 secim = st.session_state.temp_selection
                 st.success("✅ **Sipariş Detay Onayı** (Teyit Ekranı)")
                 
@@ -280,6 +300,10 @@ with tab_kurulum:
                 c_paket.markdown(f"📦 **Paket No:**\n`{row['Paket_No']}`")
                 c_siparis.markdown(f"📑 **Sipariş No:**\n`{row['Siparis_No']}`")
                 c_tel.markdown(f"📞 **Telefon:**\n`{row['Telefon']}`")
+                
+                c_urun, c_adet = st.columns([3, 1])
+                c_urun.markdown(f"🛒 **Ürün:**\n`{row['Urun_Adi']}`")
+                c_adet.markdown(f"🔢 **Adet:**\n`{row['Adet']}`")
                 
                 st.markdown("---")
                 yeni_musteri_adi = st.text_input("👤 Müşteri Adı (Yanlışsa düzeltebilirsiniz):", value=row['Alici_Ad'])
@@ -329,6 +353,7 @@ with tab_harita:
     st.markdown("---") 
     liste_kutusu = st.container()
     
+    # ➕ MANUEL SİPARİŞ EKLEME KUTUSU
     with manuel_ekleme_kutusu:
         with st.expander("➕ MANUEL SİPARİŞ / YENİ ADRES EKLE (Tıkla Aç)", expanded=False):
             st.markdown("WhatsApp'tan vb. gelen anlık siparişleri Excel'e dokunmadan buradan ekleyebilirsiniz.")
@@ -355,10 +380,15 @@ with tab_harita:
             if st.session_state.get('manual_selected'):
                 st.success(f"✅ Seçilen Konum: {st.session_state.manual_selected['label']}")
                 m_ad = st.text_input("👤 Müşteri Adı:", placeholder="Örn: Ahmet Yılmaz")
-                c1, c2, c3 = st.columns(3)
-                m_tel = c1.text_input("📞 Telefon:")
-                m_sip = c2.text_input("📑 Sipariş No:")
-                m_pak = c3.text_input("📦 Paket No:")
+                
+                c_tel, c_sip = st.columns(2)
+                m_tel = c_tel.text_input("📞 Telefon:")
+                m_sip = c_sip.text_input("📑 Sipariş No:")
+                
+                c_pak, c_ur, c_ad = st.columns([2, 3, 1])
+                m_pak = c_pak.text_input("📦 Paket No:")
+                m_urun = c_ur.text_input("🛒 Ürün Adı:", placeholder="Örn: Siyah Ayna")
+                m_adet = c_ad.text_input("🔢 Adet:", value="1")
                 
                 col_iptal, col_ekle = st.columns(2)
                 with col_iptal:
@@ -377,6 +407,8 @@ with tab_harita:
                             'Siparis_No': m_sip if m_sip else "-",
                             'Alici_Ad': m_ad if m_ad else "Manuel Müşteri", 
                             'Adres': st.session_state.manual_selected['label'],
+                            'Urun_Adi': m_urun if m_urun else "-",
+                            'Adet': m_adet if m_adet else "1",
                             'Telefon': m_tel if m_tel else "-", 
                             'Gizli_ID': max_id + 1,
                             'Onayli_Enlem': st.session_state.manual_selected['lat'], 
@@ -389,6 +421,7 @@ with tab_harita:
                         st.success("✅ Eklendi! Rotayı yeniden hesaplayabilirsiniz.")
                         st.rerun()
 
+    # 🔄 ROTA AYARLARI VE HESAPLAMA
     with ayarlar_kutusu:
         st.markdown("### 🔄 Rota Ayarları (Yeniden Planla)")
         if len(st.session_state.df_validated) == 0:
@@ -479,6 +512,7 @@ with tab_harita:
 
                                 nodes = []
                                 
+                                # Başlangıç Düğümü
                                 if start_tip != "musteri":
                                     if start_tip == "depo":
                                         s_ad, s_adres = "🏢 DEPO", "Ersan Dizayn, İstanbul"
@@ -487,9 +521,10 @@ with tab_harita:
                                     else:
                                         s_ad, s_adres = "🟢 ÖZEL BAŞLANGIÇ", ozel_baslangic
                                         
-                                    nodes.append({'Siparis_No': 'START', 'Paket_No': '-', 'Gizli_ID': '-', 'Alici_Ad': s_ad, 'Adres': s_adres, 'Telefon': '-'})
+                                    nodes.append({'Siparis_No': 'START', 'Paket_No': '-', 'Urun_Adi': '-', 'Adet': '-', 'Gizli_ID': '-', 'Alici_Ad': s_ad, 'Adres': s_adres, 'Telefon': '-'})
                                     start_node_index = 0
 
+                                # Bitiş Düğümü
                                 if not ring_rotasi and end_tip != "musteri":
                                     if end_tip == "depo":
                                         e_ad, e_adres = "🏢 DEPO", "Ersan Dizayn, İstanbul"
@@ -498,7 +533,7 @@ with tab_harita:
                                     else:
                                         e_ad, e_adres = "🔴 ÖZEL BİTİŞ", ozel_bitis
                                         
-                                    nodes.append({'Siparis_No': 'END', 'Paket_No': '-', 'Gizli_ID': '-', 'Alici_Ad': e_ad, 'Adres': e_adres, 'Telefon': '-'})
+                                    nodes.append({'Siparis_No': 'END', 'Paket_No': '-', 'Urun_Adi': '-', 'Adet': '-', 'Gizli_ID': '-', 'Alici_Ad': e_ad, 'Adres': e_adres, 'Telefon': '-'})
                                     end_node_index = len(nodes) - 1
 
                                 musteri_offset = len(nodes)
@@ -517,6 +552,7 @@ with tab_harita:
                                 df_all = pd.DataFrame(nodes)
                                 enlemler, boylamlar, gecerli_indeksler = [], [], []
 
+                                # Koordinatları Çözme
                                 for i, adres in enumerate(df_all['Adres']):
                                     lat, lon = 0.0, 0.0
                                     gizli_id = df_all['Gizli_ID'].iloc[i]
@@ -600,6 +636,7 @@ with tab_harita:
                                     sirali_df = df_filtered.iloc[rota_sirasi].copy().reset_index(drop=True)
                                     st.session_state.sirali_df = sirali_df 
                                     
+                                    # Teslimat Durumlarını Sıfırlama
                                     st.session_state.delivery_status = {}
                                     for g_id in sirali_df['Gizli_ID'].unique():
                                         st.session_state.delivery_status[g_id] = "pending"
@@ -623,6 +660,7 @@ with tab_harita:
     # --- ÜST KISIM: HARİTA BÖLÜMÜ VE SEVKİYAT KONTROLÜ ---
     if st.session_state.harita_hazir:
         with harita_kutusu:
+            # 🏁 SEVKİYAT BİTTİ Mİ KONTROLÜ
             pending_count = 0
             total_customers = 0
             
@@ -720,31 +758,45 @@ with tab_harita:
                     border_color = "#2196f3"
                     durak_etiketi = "📦 TESLİMAT"
                 
+                # 🌟 YENİ TASARIM: Ürün ve Adet Bilgisi Sağ Tarafta Dev Puntosuyla
+                urun_html = ""
+                if g_id != '-':
+                    urun_html = f"""
+                    <div style="text-align: right; background: rgba(255, 193, 7, 0.1); padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(255, 193, 7, 0.3); flex-shrink: 0; margin-left: 10px;">
+                        <div style="font-size: 22px; font-weight: 900; color: #ffc107; line-height: 1;">{row['Adet']} ADET</div>
+                        <div style="font-size: 13px; font-weight: 700; color: #fffde7; margin-top: 4px; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{row['Urun_Adi']}">{row['Urun_Adi']}</div>
+                    </div>
+                    """
+                
                 kart_html = f"""
 <div style="background: linear-gradient(145deg, #22232a, #2a2b33); padding: 20px; border-radius: 16px; margin-bottom: 10px; border-left: 6px solid {border_color}; box-shadow: 0 8px 20px rgba(0,0,0,0.15);">
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-<div style="display: flex; align-items: center; gap: 10px;">
-<span style="background-color: {border_color}; color: white; padding: 6px 12px; border-radius: 8px; font-weight: 800; font-size: 16px;">#{durak_no}</span>
-<span style="color: #b0b0b0; font-size: 11px; font-weight: 700; letter-spacing: 1px;">{durak_etiketi}</span>
-</div>
-</div>
-<div style="font-size: 20px; font-weight: 700; color: #ffffff; margin-bottom: 6px; letter-spacing: 0.5px;">{row['Alici_Ad']}</div>
-<div style="font-size: 13px; color: #b0b0b0; margin-bottom: 6px;">📦 Paket No: {row['Paket_No']}  |  📑 Sipariş: {row['Siparis_No']}</div>
-<div style="font-size: 14px; color: #a0a0b0; margin-bottom: 20px; line-height: 1.5; display: flex; align-items: flex-start; gap: 6px;">
-<span style="font-size: 16px;">📍</span><span>{row['Adres']}</span>
-</div>
-<div style="display: flex; gap: 10px;">
-<a href="https://www.google.com/maps/dir/?api=1&destination={lat},{lon}" target="_blank" class="action-btn btn-maps">🗺️ Yol Tarifi</a>
-<a href="tel:{tel_temiz}" class="action-btn btn-call">📞 Ara</a>
-<a href="https://wa.me/{tel_temiz}" target="_blank" class="action-btn btn-wp">💬 WhatsApp</a>
-</div>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="background-color: {border_color}; color: white; padding: 6px 12px; border-radius: 8px; font-weight: 800; font-size: 16px;">#{durak_no}</span>
+            <span style="color: #b0b0b0; font-size: 11px; font-weight: 700; letter-spacing: 1px;">{durak_etiketi}</span>
+        </div>
+    </div>
+    
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
+        <div style="font-size: 20px; font-weight: 700; color: #ffffff; letter-spacing: 0.5px; flex: 1;">{row['Alici_Ad']}</div>
+        {urun_html}
+    </div>
+    
+    <div style="font-size: 13px; color: #b0b0b0; margin-bottom: 6px;">📦 Paket No: {row['Paket_No']}  |  📑 Sipariş: {row['Siparis_No']}</div>
+    <div style="font-size: 14px; color: #a0a0b0; margin-bottom: 20px; line-height: 1.5; display: flex; align-items: flex-start; gap: 6px;">
+        <span style="font-size: 16px;">📍</span><span>{row['Adres']}</span>
+    </div>
+    <div style="display: flex; gap: 10px;">
+        <a href="https://www.google.com/maps/dir/?api=1&destination={lat},{lon}" target="_blank" class="action-btn btn-maps">🗺️ Yol Tarifi</a>
+        <a href="tel:{tel_temiz}" class="action-btn btn-call">📞 Ara</a>
+        <a href="https://wa.me/{tel_temiz}" target="_blank" class="action-btn btn-wp">💬 WhatsApp</a>
+    </div>
 </div>
 """
                 st.markdown(kart_html, unsafe_allow_html=True)
                 
                 # 🌟 ONAY VE MANUEL SIRALAMA BUTONLARI
                 if status == 'pending':
-                    # GÜVENLİK DUVARI: 1. Durak ve Son Durak taşınamaz!
                     if 1 < durak_no < len(st.session_state.sirali_df):
                         c_ok, c_fail, c_sira, c_tasi = st.columns([5, 5, 4, 3])
                         
@@ -783,7 +835,6 @@ with tab_harita:
                                     st.session_state.buffer = buffer
                                     st.rerun() 
                     else:
-                        # 1. veya Son duraksa, sadece Teslim Edildi / İptal çıkar. Taşıma kutusu görünmez.
                         c_ok, c_fail = st.columns(2)
                         with c_ok:
                             if st.button("✅ Teslim Edildi", key=f"ok_{g_id}", use_container_width=True):
