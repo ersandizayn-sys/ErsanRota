@@ -98,22 +98,28 @@ st.markdown("""
         background: linear-gradient(135deg, #2196f3, #1976d2);
     }
 
-    div[data-testid="stNumberInput"] > div > div > input {
+    /* 🌟 PREMIUM SIRA GİRİŞ KUTUSU TASARIMI (GÜÇLENDİRİLDİ) 🌟 */
+    [data-testid="stNumberInputContainer"] {
         background-color: #2b2b36 !important;
-        color: white !important;
         border: 1px solid #444 !important;
         border-radius: 8px !important;
-        padding: 13px 10px !important;
-        font-weight: 700 !important;
-        text-align: center !important;
-        font-size: 16px !important;
-        transition: all 0.3s ease !important;
+        overflow: hidden;
     }
-    div[data-testid="stNumberInput"] > div > div > input:focus {
+    [data-testid="stNumberInputContainer"]:focus-within {
         border-color: #1e88e5 !important;
         box-shadow: 0 0 8px rgba(30,136,229,0.5) !important;
     }
-    div[data-testid="stNumberInputStepUp"], div[data-testid="stNumberInputStepDown"] {
+    [data-testid="stNumberInputContainer"] input {
+        color: #ffc107 !important; /* Rakam Sarı Yapıldı */
+        font-weight: 800 !important;
+        font-size: 18px !important;
+        text-align: center !important;
+        padding: 12px 0px !important;
+    }
+    /* Artı Eksi Butonlarını Tüm Versiyonlarda Kökten Yok Etme */
+    [data-testid="stNumberInputContainer"] button, 
+    [data-testid="stNumberInputStepUp"], 
+    [data-testid="stNumberInputStepDown"] {
         display: none !important;
     }
 </style>
@@ -235,19 +241,16 @@ with tab_kurulum:
                     st.session_state.current_step_memory = current
                     st.session_state.custom_search = str(row['Adres']).replace("\n", " ")
                 
-                html_secim = f"""
-<div style="background-color: #2b2b36; padding: 20px; border-radius: 12px; margin-bottom: 20px; border-left: 5px solid #1e88e5;">
-    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-        <div style="font-size: 18px; font-weight: bold; color: white; flex: 1;">👤 {row['Alici_Ad']}</div>
-        <div style="text-align: right; background: rgba(255, 193, 7, 0.15); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(255, 193, 7, 0.3); margin-left: 10px;">
-            <span style="font-size: 18px; font-weight: 900; color: #ffc107;">{row['Adet']}x</span> <span style="font-size: 14px; font-weight: 700; color: #fffde7;">{row['Urun_Adi']}</span>
-        </div>
-    </div>
-    <div style="color: #4caf50; font-size: 12px; font-weight: bold; margin-top: 12px; margin-bottom: 4px;">ŞOFÖRÜN GÖRECEĞİ ADRES:</div>
-    <div style="color: #e0e0e0; font-size: 15px;">{row['Adres']}</div>
-</div>
-"""
+                html_secim = f"""<div style="background-color: #2b2b36; padding: 20px; border-radius: 12px; margin-bottom: 20px; border-left: 5px solid #1e88e5;">
+<div style="display: flex; justify-content: space-between; align-items: flex-start;">
+<div style="font-size: 18px; font-weight: bold; color: white; flex: 1;">👤 {row['Alici_Ad']}</div>
+<div style="text-align: right; background: rgba(255, 193, 7, 0.15); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(255, 193, 7, 0.3); margin-left: 10px;">
+<span style="font-size: 18px; font-weight: 900; color: #ffc107;">{row['Adet']}x</span> <span style="font-size: 14px; font-weight: 700; color: #fffde7;">{row['Urun_Adi']}</span>
+</div></div>
+<div style="color: #4caf50; font-size: 12px; font-weight: bold; margin-top: 12px; margin-bottom: 4px;">ŞOFÖRÜN GÖRECEĞİ ADRES:</div>
+<div style="color: #e0e0e0; font-size: 15px;">{row['Adres']}</div></div>"""
                 st.markdown(html_secim, unsafe_allow_html=True)
+                
                 st.info("💡 **TÜYO:** Çok az seçenek çıkıyorsa, bina numarası ve daireyi silip sadece **Sokak/Mahalle/İlçe** bırakıp Enter'a basın.")
                 yeni_arama = st.text_area("🔍 Adresi sadeleştirip tekrar ara (Enter'a bas):", value=st.session_state.custom_search, height=80)
                 
@@ -346,6 +349,7 @@ with tab_harita:
     st.markdown("---") 
     liste_kutusu = st.container()
     
+    # ➕ MANUEL SİPARİŞ EKLEME KUTUSU
     with manuel_ekleme_kutusu:
         with st.expander("➕ MANUEL SİPARİŞ / YENİ ADRES EKLE (Tıkla Aç)", expanded=False):
             st.markdown("WhatsApp'tan vb. gelen anlık siparişleri Excel'e dokunmadan buradan ekleyebilirsiniz.")
@@ -649,6 +653,7 @@ with tab_harita:
     # --- ÜST KISIM: HARİTA BÖLÜMÜ VE SEVKİYAT KONTROLÜ ---
     if st.session_state.harita_hazir:
         with harita_kutusu:
+            # 🏁 SEVKİYAT BİTTİ Mİ KONTROLÜ
             pending_count = 0
             total_customers = 0
             
@@ -746,7 +751,6 @@ with tab_harita:
                     border_color = "#2196f3"
                     durak_etiketi = "📦 TESLİMAT"
                 
-                # 🌟 SIFIR BOŞLUKLU HTML YAPI (MARKDOWN HATASINI ÖNLER)
                 urun_html = ""
                 if g_id != '-':
                     urun_html = f"""<div style="text-align: right; background: rgba(255, 193, 7, 0.1); padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(255, 193, 7, 0.3); flex-shrink: 0; margin-left: 10px;">
@@ -765,7 +769,7 @@ with tab_harita:
 <div style="font-size: 20px; font-weight: 700; color: #ffffff; letter-spacing: 0.5px; flex: 1;">{row['Alici_Ad']}</div>
 {urun_html}
 </div>
-<div style="font-size: 13px; color: #b0b0b0; margin-bottom: 6px;">📦 Paket No: {row['Paket_No']} &nbsp;|&nbsp; 📑 Sipariş: {row['Siparis_No']}</div>
+<div style="font-size: 13px; color: #b0b0b0; margin-bottom: 6px;">📦 Paket No: {row['Paket_No']}  |  📑 Sipariş: {row['Siparis_No']}</div>
 <div style="font-size: 14px; color: #a0a0b0; margin-bottom: 20px; line-height: 1.5; display: flex; align-items: flex-start; gap: 6px;">
 <span style="font-size: 16px;">📍</span><span>{row['Adres']}</span>
 </div>
@@ -797,7 +801,7 @@ with tab_harita:
                             hedef_sira = st.number_input("Sıra No", min_value=2, max_value=maks_durak, value=durak_no, key=f"sira_{g_id}", label_visibility="collapsed")
                         
                         with c_tasi:
-                            if st.button("🔄 Taşı", key=f"move_{g_id}", use_container_width=True):
+                            if st.button("🔄 Taşı", key=f"move_{g_id}", type="primary", use_container_width=True):
                                 eski_idx = idx
                                 yeni_idx = hedef_sira - 1
                                 
