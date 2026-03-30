@@ -104,6 +104,45 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# 🧠 YAPAY ZEKA: ÇOKLU ARAMA MOTORU (Genişletildi ve Dışarı Alındı)
+@st.cache_data(show_spinner=False)
+def get_candidates(api_key, address):
+    gmaps = googlemaps.Client(key=api_key)
+    candidates = []
+    seen_addresses = set()
+
+    def add_result(res_list):
+        for r in res_list:
+            addr = r.get('formatted_address', '')
+            if addr and addr not in seen_addresses:
+                seen_addresses.add(addr)
+                candidates.append({
+                    "label": addr,
+                    "lat": r['geometry']['location']['lat'],
+                    "lng": r['geometry']['location']['lng']
+                })
+
+    try: add_result(gmaps.geocode(f"{address}, Türkiye"))
+    except: pass
+
+    if len(candidates) < 4:
+        try:
+            temiz_adres = re.sub(r'(?i)\b(no|numara|d|daire|kat|blok|iç kapı)\b\s*[:.]?\s*\d*[/a-zA-Z\d-]*', '', address)
+            temiz_adres = temiz_adres.replace("/", " ").replace("-", " ")
+            if temiz_adres.strip() != address.strip():
+                add_result(gmaps.geocode(f"{temiz_adres.strip()}, Türkiye"))
+        except: pass
+    
+    if len(candidates) < 4:
+        try:
+            kelimeler = address.replace(',', ' ').split()
+            if len(kelimeler) > 3:
+                son_kisim = " ".join(kelimeler[-4:])
+                add_result(gmaps.geocode(f"{son_kisim}, Türkiye"))
+        except: pass
+
+    return candidates
+
 st.title("🚚 Ersan Dizayn Rota Kontrol Merkezi")
 
 # SESSION STATE DEĞİŞKENLERİ
@@ -116,6 +155,12 @@ if 'temp_selection' not in st.session_state: st.session_state.temp_selection = N
 if 'temp_lat' not in st.session_state: st.session_state.temp_lat = None
 if 'temp_lng' not in st.session_state: st.session_state.temp_lng = None
 if 'delivery_status' not in st.session_state: st.session_state.delivery_status = {} 
+if 'df_validated' not in st.session_state: 
+    st.session_state.df_validated = pd.DataFrame(columns=['Paket_No', 'Siparis_No', 'Alici_Ad', 'Adres', 'Telefon', 'Gizli_ID', 'Onayli_Enlem', 'Onayli_Boylam'])
+
+# MANUEL EKLEME İÇİN DEĞİŞKENLER
+if 'manual_search_results' not in st.session_state: st.session_state.manual_search_results = []
+if 'manual_selected' not in st.session_state: st.session_state.manual_selected = None
 
 tab_kurulum, tab_harita = st.tabs(["📂 1. Veri Yükleme ve Doğrulama", "🗺️ 2. Planlama ve Harita"])
 
@@ -179,49 +224,6 @@ with tab_kurulum:
                     st.session_state.custom_search = yeni_arama
                     st.rerun()
 
-                # --- 🧠 YAPAY ZEKA: ÇOKLU ARAMA MOTORU ---
-                @st.cache_data(show_spinner=False)
-                def get_candidates(api_key, address):
-                    gmaps = googlemaps.Client(key=api_key)
-                    candidates = []
-                    seen_addresses = set()
-
-                    def add_result(res_list):
-                        for r in res_list:
-                            addr = r.get('formatted_address', '')
-                            if addr and addr not in seen_addresses:
-                                seen_addresses.add(addr)
-                                candidates.append({
-                                    "label": addr,
-                                    "lat": r['geometry']['location']['lat'],
-                                    "lng": r['geometry']['location']['lng']
-                                })
-
-                    try:
-                        # 1. Normal Arama
-                        add_result(gmaps.geocode(f"{address}, Türkiye"))
-                    except: pass
-
-                    # 2. Agresif Temizlik Araması (No, Daire, Kat silinir)
-                    if len(candidates) < 4:
-                        try:
-                            temiz_adres = re.sub(r'(?i)\b(no|numara|d|daire|kat|blok|iç kapı)\b\s*[:.]?\s*\d*[/a-zA-Z\d-]*', '', address)
-                            temiz_adres = temiz_adres.replace("/", " ").replace("-", " ")
-                            if temiz_adres.strip() != address.strip():
-                                add_result(gmaps.geocode(f"{temiz_adres.strip()}, Türkiye"))
-                        except: pass
-                    
-                    # 3. Bölge Araması (Sadece son kelimeler: Mahalle, İlçe)
-                    if len(candidates) < 4:
-                        try:
-                            kelimeler = address.replace(',', ' ').split()
-                            if len(kelimeler) > 3:
-                                son_kisim = " ".join(kelimeler[-4:]) # Son 4 kelimeyi al
-                                add_result(gmaps.geocode(f"{son_kisim}, Türkiye"))
-                        except: pass
-
-                    return candidates
-                
                 with st.spinner("Google Haritalar'dan tüm alternatifler çekiliyor..."):
                     options = get_candidates(GOOGLE_MAPS_API_KEY, st.session_state.custom_search)
 
@@ -306,17 +308,89 @@ with tab_kurulum:
 
 # --- SEKME 2: 🗺️ PLANLAMA VE HARİTA ---
 with tab_harita:
-    harita_kutusu = st.container()
-    st.markdown("---") 
+    manuel_ekleme_kutusu = st.container()
+    st.markdown("---")
     ayarlar_kutusu = st.container()
+    st.markdown("---") 
+    harita_kutusu = st.container()
     st.markdown("---") 
     liste_kutusu = st.container()
     
+    # ➕ MANUEL SİPARİŞ EKLEME KUTUSU (YENİ ÖZELLİK)
+    with manuel_ekleme_kutusu:
+        with st.expander("➕ MANUEL SİPARİŞ / YENİ ADRES EKLE (Tıkla Aç)", expanded=False):
+            st.markdown("WhatsApp'tan vb. gelen anlık siparişleri Excel'e dokunmadan buradan ekleyebilirsiniz.")
+            
+            # ARAMA BÖLÜMÜ
+            col_search, col_btn = st.columns([4, 1])
+            with col_search:
+                man_arama = st.text_input("📍 Aranacak Adresi Yazın (Mahalle, Sokak, İlçe vb.):")
+            with col_btn:
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.button("Adresi Bul 🔍", use_container_width=True):
+                    if man_arama.strip() != "":
+                        if GOOGLE_MAPS_API_KEY == "BURAYA_KENDI_API_ANAHTARINI_YAZ":
+                            st.error("API Anahtarı eksik!")
+                        else:
+                            with st.spinner("Aranıyor..."):
+                                st.session_state.manual_search_results = get_candidates(GOOGLE_MAPS_API_KEY, man_arama)
+                                st.session_state.manual_selected = None
+            
+            # ŞERİT SONUÇLAR
+            if st.session_state.get('manual_search_results') and not st.session_state.get('manual_selected'):
+                st.markdown("👇 **Haritaya pin atılacak konumu TIKLAYARAK seçin:**")
+                for i, opt in enumerate(st.session_state.manual_search_results):
+                    if st.button(f"📍 {opt['label']}", key=f"man_add_opt_{i}", use_container_width=True):
+                        st.session_state.manual_selected = opt
+                        st.rerun()
+            
+            # BİLGİ GİRİŞİ (ONAY) EKRANI
+            if st.session_state.get('manual_selected'):
+                st.success(f"✅ Seçilen Konum: {st.session_state.manual_selected['label']}")
+                
+                m_ad = st.text_input("👤 Müşteri Adı:", placeholder="Örn: Ahmet Yılmaz")
+                col1, col2, col3 = st.columns(3)
+                m_tel = col1.text_input("📞 Telefon:")
+                m_sip = col2.text_input("📑 Sipariş No:")
+                m_pak = col3.text_input("📦 Paket No:")
+                
+                st.markdown("<br>", unsafe_allow_html=True)
+                col_iptal, col_ekle = st.columns(2)
+                with col_iptal:
+                    if st.button("⬅️ İptal Et", use_container_width=True):
+                        st.session_state.manual_selected = None
+                        st.session_state.manual_search_results = []
+                        st.rerun()
+                with col_ekle:
+                    if st.button("💾 Kaydet ve Listeye Ekle", type="primary", use_container_width=True):
+                        max_id = 0
+                        if len(st.session_state.df_validated) > 0:
+                            max_id = st.session_state.df_validated['Gizli_ID'].max()
+                        
+                        new_row = {
+                            'Paket_No': m_pak if m_pak else "-",
+                            'Siparis_No': m_sip if m_sip else "-",
+                            'Alici_Ad': m_ad if m_ad else "Manuel Müşteri",
+                            'Adres': st.session_state.manual_selected['label'],
+                            'Telefon': m_tel if m_tel else "-",
+                            'Gizli_ID': max_id + 1,
+                            'Onayli_Enlem': st.session_state.manual_selected['lat'],
+                            'Onayli_Boylam': st.session_state.manual_selected['lng']
+                        }
+                        
+                        st.session_state.df_validated = pd.concat([st.session_state.df_validated, pd.DataFrame([new_row])], ignore_index=True)
+                        st.session_state.validation_complete = True # Manuel girişle rota başlatabilmek için
+                        st.session_state.manual_selected = None
+                        st.session_state.manual_search_results = []
+                        st.success("✅ Sipariş başarıyla listeye eklendi! Rotayı yeniden hesaplayabilirsiniz.")
+                        st.rerun()
+
+    # 🔄 ROTA AYARLARI
     with ayarlar_kutusu:
         st.markdown("### 🔄 Rota Ayarları (Yeniden Planla)")
         
-        if not st.session_state.validation_complete:
-            st.warning("👈 Önce '1. Veri Yükleme ve Doğrulama' sekmesinden adresleri doğrulamanız gerekiyor!")
+        if len(st.session_state.df_validated) == 0:
+            st.warning("👈 Excel yükleyerek veya 'Manuel Sipariş Ekle' bölümünden sipariş ekleyin.")
         else:
             try:
                 df_excel = st.session_state.df_validated
@@ -336,7 +410,7 @@ with tab_harita:
                             text = f"[{d_no}. Durak] {row['Alici_Ad']} ➔ {str(row['Adres'])[:35]}..."
                             sort_key = d_no
                         else:
-                            text = f"[Bulunamadı] {row['Alici_Ad']} ➔ {str(row['Adres'])[:35]}..."
+                            text = f"[Yeni Eklendi] {row['Alici_Ad']} ➔ {str(row['Adres'])[:35]}..."
                             sort_key = 9999 + gizli_id
                         musteriler.append({"text": text, "sort_key": sort_key, "excel_idx": idx})
                     musteriler.sort(key=lambda x: x["sort_key"])
@@ -546,7 +620,7 @@ with tab_harita:
             else:
                 st.info(f"🚚 Kalan Teslimat: {pending_count} / {total_customers} | Aşağıdan güzergahı inceleyebilirsiniz.")
             
-            # 🗺️ ANLIK GÜNCELLENEN HARİTA (Canlı Renkler)
+            # 🗺️ ANLIK GÜNCELLENEN HARİTA
             sirali_df = st.session_state.sirali_df
             baslangic_lat = sirali_df['Enlem'].iloc[0]
             baslangic_lon = sirali_df['Boylam'].iloc[0]
