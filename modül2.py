@@ -162,7 +162,7 @@ with tab_kurulum:
             if not st.session_state.awaiting_confirmation:
                 if 'current_step_memory' not in st.session_state or st.session_state.current_step_memory != current:
                     st.session_state.current_step_memory = current
-                    st.session_state.custom_search = row['Adres']
+                    st.session_state.custom_search = str(row['Adres']).replace("\n", " ")
                 
                 html_secim = f"""
 <div style="background-color: #2b2b36; padding: 20px; border-radius: 12px; margin-bottom: 20px; border-left: 5px solid #1e88e5;">
@@ -173,48 +173,53 @@ with tab_kurulum:
 """
                 st.markdown(html_secim, unsafe_allow_html=True)
 
-                yeni_arama = st.text_area("🔍 Harita bulamadıysa, adresi sadeleştirip Enter'a basın:", value=st.session_state.custom_search, height=100)
+                st.info("💡 **TÜYO:** Eğer altta çok az seçenek çıkıyorsa, aşağıdaki kutudan bina numarasını ve daireyi silip sadece **Sokak/Mahalle/İlçe** bırakıp Enter'a basın.")
+                yeni_arama = st.text_area("🔍 Adresi sadeleştirip tekrar ara (Enter'a bas):", value=st.session_state.custom_search, height=80)
                 if yeni_arama != st.session_state.custom_search:
                     st.session_state.custom_search = yeni_arama
                     st.rerun()
 
-                # --- GELİŞMİŞ ÇOKLU ARAMA MOTORU ---
+                # --- 🧠 YAPAY ZEKA: ÇOKLU ARAMA MOTORU ---
                 @st.cache_data(show_spinner=False)
                 def get_candidates(api_key, address):
                     gmaps = googlemaps.Client(key=api_key)
                     candidates = []
                     seen_addresses = set()
 
-                    def add_result(r):
-                        addr = r.get('formatted_address', '')
-                        if addr and addr not in seen_addresses:
-                            seen_addresses.add(addr)
-                            candidates.append({
-                                "label": addr,
-                                "lat": r['geometry']['location']['lat'],
-                                "lng": r['geometry']['location']['lng']
-                            })
+                    def add_result(res_list):
+                        for r in res_list:
+                            addr = r.get('formatted_address', '')
+                            if addr and addr not in seen_addresses:
+                                seen_addresses.add(addr)
+                                candidates.append({
+                                    "label": addr,
+                                    "lat": r['geometry']['location']['lat'],
+                                    "lng": r['geometry']['location']['lng']
+                                })
 
                     try:
-                        # 1. Standart Geocode
-                        geo = gmaps.geocode(f"{address}, Türkiye")
-                        for r in geo: add_result(r)
+                        # 1. Normal Arama
+                        add_result(gmaps.geocode(f"{address}, Türkiye"))
+                    except: pass
 
-                        # 2. Places API ile Mekan/Geniş Arama
-                        places = gmaps.places(query=f"{address} Türkiye")
-                        if 'results' in places:
-                            for r in places['results']: add_result(r)
-                            
-                        # 3. Hala az sonuç varsa Akıllı Temizleme (No/Daire silerek arama)
-                        if len(candidates) < 4:
-                            temiz_adres = re.sub(r'(?i)(no|numara|d|daire|kat|blok)\s*[:.]?\s*\d+', '', address)
-                            if temiz_adres != address:
-                                geo_temiz = gmaps.geocode(f"{temiz_adres}, Türkiye")
-                                for r in geo_temiz: add_result(r)
-                                
-                    except Exception as e:
-                        pass
+                    # 2. Agresif Temizlik Araması (No, Daire, Kat silinir)
+                    if len(candidates) < 4:
+                        try:
+                            temiz_adres = re.sub(r'(?i)\b(no|numara|d|daire|kat|blok|iç kapı)\b\s*[:.]?\s*\d*[/a-zA-Z\d-]*', '', address)
+                            temiz_adres = temiz_adres.replace("/", " ").replace("-", " ")
+                            if temiz_adres.strip() != address.strip():
+                                add_result(gmaps.geocode(f"{temiz_adres.strip()}, Türkiye"))
+                        except: pass
                     
+                    # 3. Bölge Araması (Sadece son kelimeler: Mahalle, İlçe)
+                    if len(candidates) < 4:
+                        try:
+                            kelimeler = address.replace(',', ' ').split()
+                            if len(kelimeler) > 3:
+                                son_kisim = " ".join(kelimeler[-4:]) # Son 4 kelimeyi al
+                                add_result(gmaps.geocode(f"{son_kisim}, Türkiye"))
+                        except: pass
+
                     return candidates
                 
                 with st.spinner("Google Haritalar'dan tüm alternatifler çekiliyor..."):
@@ -222,7 +227,7 @@ with tab_kurulum:
 
                 st.markdown("👇 **Haritaya pin atılacak konumu TIKLAYARAK seçin:**")
 
-                # Dinamik Şerit Butonlar (Artık çok daha fazla alternatif çıkacak)
+                # Şerit Butonlar (Alternatifler)
                 for i, opt in enumerate(options):
                     if st.button(f"📍 {opt['label']}", key=f"btn_opt_{current}_{i}", use_container_width=True):
                         st.session_state.temp_selection = opt['label']
