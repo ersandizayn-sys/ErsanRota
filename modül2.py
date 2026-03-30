@@ -14,7 +14,7 @@ from streamlit_geolocation import streamlit_geolocation
 # ==========================================
 # 🔑 GOOGLE MAPS API ANAHTARINI BURAYA YAZ 🔑
 # ==========================================
-GOOGLE_MAPS_API_KEY = "AIzaSyAbn2TCWJDpKimkoKKb0cNcGWQj9gUF-Mg"
+GOOGLE_MAPS_API_KEY = "BURAYA_KENDI_API_ANAHTARINI_YAZ"
 
 # 1. Panel Sayfa Ayarları
 st.set_page_config(page_title="Ersan Dizayn Rota Paneli", layout="wide", initial_sidebar_state="collapsed")
@@ -47,7 +47,7 @@ st.markdown("""
         box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
     }
     
-    /* İletişim / Yol Tarifi Butonları (Kart İçi) */
+    /* İletişim / Yol Tarifi Butonları (Kart İçi HTML) */
     .action-btn {
         flex: 1;
         text-align: center;
@@ -72,27 +72,33 @@ st.markdown("""
     .btn-wp { background: linear-gradient(135deg, #25d366, #128c7e); box-shadow: 0 4px 10px rgba(37,211,102,0.3); }
     .btn-wp:hover { background: linear-gradient(135deg, #2ae06d, #159f8e); transform: scale(1.02); }
     
-    /* 🌟 STREAMLIT BUTONLARINI PREMIUM YAPMA (Teslim Edildi vb.) 🌟 */
+    /* 🌟 STREAMLIT BUTONLARI (Şerit Liste Mantığı) 🌟 */
     div[data-testid="stButton"] button {
         background-color: #2b2b36;
         color: white;
-        border: 1px solid #555;
-        border-radius: 10px;
-        padding: 15px 10px;
-        font-weight: 700;
-        letter-spacing: 0.5px;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        border: 1px solid #444;
+        border-radius: 8px;
+        padding: 14px 16px;
+        font-weight: 500;
+        letter-spacing: 0.3px;
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+        justify-content: flex-start !important; /* Yazıyı sola yaslar (Liste görünümü) */
+        text-align: left !important;
     }
     div[data-testid="stButton"] button:hover {
         background-color: #3b3b46;
-        border-color: #aaa;
+        border-color: #1e88e5;
         transform: translateY(-2px);
-        box-shadow: 0 6px 12px rgba(0,0,0,0.3);
     }
+    
+    /* Ana Aksiyon Butonları (İleri, Hesapla vb. ORTALANSIN) */
     div[data-testid="stButton"] button[kind="primary"] {
         background: linear-gradient(135deg, #1e88e5, #1565c0);
         border: none;
+        justify-content: center !important;
+        text-align: center !important;
+        font-weight: 700;
     }
     div[data-testid="stButton"] button[kind="primary"]:hover {
         background: linear-gradient(135deg, #2196f3, #1976d2);
@@ -128,7 +134,7 @@ with tab_kurulum:
         if 'uploaded_filename' not in st.session_state or st.session_state.uploaded_filename != yuklenen_dosya_input.name:
             st.session_state.uploaded_filename = yuklenen_dosya_input.name
             
-            df_raw = pd.read_excel(yuklenen_dosya_input, usecols="B,H,I,J,P")
+            df_raw = pd.read_excel(yuklenen_dosya_input, usecols="G,H,I,J,P")
             df_raw.columns = ['Paket_No', 'Siparis_No', 'Alici_Ad', 'Adres', 'Telefon']
             df_raw = df_raw.dropna(subset=['Adres']).reset_index(drop=True)
             
@@ -156,6 +162,7 @@ with tab_kurulum:
             st.progress((current) / total)
             
             if not st.session_state.awaiting_confirmation:
+                # SEÇİM EKRANI (ŞERİT BUTONLAR)
                 if 'current_step_memory' not in st.session_state or st.session_state.current_step_memory != current:
                     st.session_state.current_step_memory = current
                     st.session_state.custom_search = row['Adres']
@@ -193,30 +200,39 @@ with tab_kurulum:
                         "lng": r['geometry']['location']['lng']
                     })
 
-                radio_list = [opt["label"] for opt in options]
-                radio_list.append("⚠️ Orijinal metni kullan (Sisteme bırak)")
-                radio_list.append("❌ Bu siparişi atla (Rotaya Ekleme)")
+                st.markdown("👇 **Haritaya pin atılacak konumu TIKLAYARAK seçin:**")
 
-                secim = st.radio("👇 Haritaya pin atılacak konumu seçin:", radio_list)
-
-                st.markdown("<br>", unsafe_allow_html=True)
-                colA, colB = st.columns(2)
-                with colA:
-                    if st.button("⬅️ Önceki Kayıt", disabled=(current == 0), use_container_width=True):
-                        st.session_state.wizard_step -= 1
-                        st.session_state.validated_data.pop()
-                        st.rerun()
-                with colB:
-                    if st.button("Seçimi Onayla ve İleri ➡️", type="primary", use_container_width=True):
-                        st.session_state.temp_selection = secim
-                        if secim not in ["❌ Bu siparişi atla (Rotaya Ekleme)", "⚠️ Orijinal metni kullan (Sisteme bırak)"]:
-                            selected_opt = next(item for item in options if item["label"] == secim)
-                            st.session_state.temp_lat = selected_opt['lat']
-                            st.session_state.temp_lng = selected_opt['lng']
+                # Alternatifleri Tek Tıkla Seçilebilir Şerit Butonlar Haline Getirdik
+                for i, opt in enumerate(options):
+                    if st.button(f"📍 {opt['label']}", key=f"btn_opt_{current}_{i}", use_container_width=True):
+                        st.session_state.temp_selection = opt['label']
+                        st.session_state.temp_lat = opt['lat']
+                        st.session_state.temp_lng = opt['lng']
                         st.session_state.awaiting_confirmation = True
                         st.rerun()
 
+                # Sabit Seçenekler (Yine Şerit Buton Olarak)
+                st.markdown("<br>", unsafe_allow_html=True)
+                
+                if st.button("⚠️ Orijinal metni kullan (Sisteme bırak)", key=f"btn_orig_{current}", use_container_width=True):
+                    st.session_state.temp_selection = "⚠️ Orijinal metni kullan (Sisteme bırak)"
+                    st.session_state.awaiting_confirmation = True
+                    st.rerun()
+                    
+                if st.button("❌ Bu siparişi atla (Rotaya Ekleme)", key=f"btn_skip_{current}", use_container_width=True):
+                    st.session_state.temp_selection = "❌ Bu siparişi atla (Rotaya Ekleme)"
+                    st.session_state.awaiting_confirmation = True
+                    st.rerun()
+
+                st.markdown("---")
+                if st.button("⬅️ Önceki Kayıt (Geri Dön)", disabled=(current == 0), use_container_width=True):
+                    st.session_state.wizard_step -= 1
+                    if len(st.session_state.validated_data) > 0:
+                        st.session_state.validated_data.pop()
+                    st.rerun()
+
             else:
+                # ONAY EKRANI
                 secim = st.session_state.temp_selection
                 st.success("✅ **Sipariş Detay Onayı** (Teyit Ekranı)")
                 
@@ -234,10 +250,11 @@ with tab_kurulum:
                 st.markdown("<br>", unsafe_allow_html=True)
                 colA, colB = st.columns(2)
                 with colA:
-                    if st.button("⬅️ İptal (Geri Dön)", use_container_width=True):
+                    if st.button("⬅️ İptal (Seçimi Değiştir)", use_container_width=True):
                         st.session_state.awaiting_confirmation = False
                         st.rerun()
                 with colB:
+                    # BİLGİLER DOĞRU BUTONU ARTIK PRIMARY
                     if st.button("✅ BİLGİLER DOĞRU, SIRADAKİNE GEÇ", type="primary", use_container_width=True):
                         if secim == "❌ Bu siparişi atla (Rotaya Ekleme)":
                             pass 
@@ -336,7 +353,7 @@ with tab_harita:
                 if not ring_rotasi and secilen_bitis == "✍️ Farklı Bir Adres Yaz":
                     ozel_bitis = st.text_input("🔴 Bitiş Adresinizi Yazın:")
 
-                if st.button("🚀 Rotayı Hesapla ve Haritayı Çiz", use_container_width=True):
+                if st.button("🚀 Rotayı Hesapla ve Haritayı Çiz", type="primary", use_container_width=True):
                     if gps_lazim and not (loc and loc.get('latitude')):
                         st.error("Lütfen GPS konumunuzu almak için yukarıdaki butona tıklayın!")
                     elif secilen_baslangic == "✍️ Farklı Bir Adres Yaz" and not ozel_baslangic:
@@ -583,7 +600,7 @@ with tab_harita:
 </div>
 </div>
 <div style="font-size: 20px; font-weight: 700; color: #ffffff; margin-bottom: 6px; letter-spacing: 0.5px;">{row['Alici_Ad']}</div>
-<div style="font-size: 13px; color: #b0b0b0; margin-bottom: 6px;">📦 Paket No: {row['Paket_No']} &nbsp;|&nbsp; 📑 Sipariş: {row['Siparis_No']}</div>
+<div style="font-size: 13px; color: #b0b0b0; margin-bottom: 6px;">📦 Paket No: {row['Paket_No']}  |  📑 Sipariş: {row['Siparis_No']}</div>
 <div style="font-size: 14px; color: #a0a0b0; margin-bottom: 20px; line-height: 1.5; display: flex; align-items: flex-start; gap: 6px;">
 <span style="font-size: 16px;">📍</span><span>{row['Adres']}</span>
 </div>
@@ -596,7 +613,7 @@ with tab_harita:
 """
                 st.markdown(kart_html, unsafe_allow_html=True)
                 
-                # Müşterilerde Onay / İptal Butonu (Özel CSS ile şıklaştırıldı)
+                # Müşterilerde Onay / İptal Butonu (Şık, Sola Yaslı, Gri Tonlu Butonlar)
                 if status == 'pending':
                     col_ok, col_fail = st.columns(2)
                     with col_ok:
