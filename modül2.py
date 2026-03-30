@@ -22,12 +22,10 @@ st.set_page_config(page_title="Ersan Dizayn Rota Paneli", layout="wide", initial
 # 🌟 PREMIUM TASARIM CSS ENJEKSİYONU 🌟
 st.markdown("""
 <style>
-    /* Menü ve Footer Gizleme */
     #MainMenu { visibility: hidden; }
     footer { visibility: hidden; }
     header { visibility: hidden; }
 
-    /* Sekme Tasarımları */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
         background-color: transparent;
@@ -49,7 +47,6 @@ st.markdown("""
         box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
     }
     
-    /* Aksiyon Butonları */
     .action-btn {
         flex: 1;
         text-align: center;
@@ -72,7 +69,6 @@ st.markdown("""
     .btn-wp { background: linear-gradient(135deg, #25d366, #128c7e); box-shadow: 0 4px 10px rgba(37,211,102,0.3); }
     .btn-wp:hover { background: linear-gradient(135deg, #2ae06d, #159f8e); transform: scale(1.02); }
     
-    /* Streamlit Şerit Buton Tasarımları */
     div[data-testid="stButton"] button {
         background-color: #2b2b36;
         color: white;
@@ -102,7 +98,6 @@ st.markdown("""
         background: linear-gradient(135deg, #2196f3, #1976d2);
     }
 
-    /* PREMIUM SIRA GİRİŞ KUTUSU TASARIMI */
     div[data-testid="stNumberInput"] > div > div > input {
         background-color: #2b2b36 !important;
         color: white !important;
@@ -202,7 +197,6 @@ with tab_kurulum:
             st.session_state.uploaded_filename = yuklenen_dosya_input.name
             
             try:
-                # DİKKAT: K Sütunu = Ürün Adı, L Sütunu = Adet olarak varsayıldı.
                 df_raw = pd.read_excel(yuklenen_dosya_input, usecols="B,H,I,J,N,O,P")
                 df_raw.columns = ['Paket_No', 'Siparis_No', 'Alici_Ad', 'Adres', 'Urun_Adi', 'Adet', 'Telefon']
             except ValueError:
@@ -241,7 +235,6 @@ with tab_kurulum:
                     st.session_state.current_step_memory = current
                     st.session_state.custom_search = str(row['Adres']).replace("\n", " ")
                 
-                # SİHİRBAZDA DA ÜRÜN VE ADETİ BÜYÜK GÖSTERİYORUZ
                 html_secim = f"""
 <div style="background-color: #2b2b36; padding: 20px; border-radius: 12px; margin-bottom: 20px; border-left: 5px solid #1e88e5;">
     <div style="display: flex; justify-content: space-between; align-items: flex-start;">
@@ -353,7 +346,6 @@ with tab_harita:
     st.markdown("---") 
     liste_kutusu = st.container()
     
-    # ➕ MANUEL SİPARİŞ EKLEME KUTUSU
     with manuel_ekleme_kutusu:
         with st.expander("➕ MANUEL SİPARİŞ / YENİ ADRES EKLE (Tıkla Aç)", expanded=False):
             st.markdown("WhatsApp'tan vb. gelen anlık siparişleri Excel'e dokunmadan buradan ekleyebilirsiniz.")
@@ -421,7 +413,6 @@ with tab_harita:
                         st.success("✅ Eklendi! Rotayı yeniden hesaplayabilirsiniz.")
                         st.rerun()
 
-    # 🔄 ROTA AYARLARI VE HESAPLAMA
     with ayarlar_kutusu:
         st.markdown("### 🔄 Rota Ayarları (Yeniden Planla)")
         if len(st.session_state.df_validated) == 0:
@@ -552,7 +543,6 @@ with tab_harita:
                                 df_all = pd.DataFrame(nodes)
                                 enlemler, boylamlar, gecerli_indeksler = [], [], []
 
-                                # Koordinatları Çözme
                                 for i, adres in enumerate(df_all['Adres']):
                                     lat, lon = 0.0, 0.0
                                     gizli_id = df_all['Gizli_ID'].iloc[i]
@@ -636,7 +626,6 @@ with tab_harita:
                                     sirali_df = df_filtered.iloc[rota_sirasi].copy().reset_index(drop=True)
                                     st.session_state.sirali_df = sirali_df 
                                     
-                                    # Teslimat Durumlarını Sıfırlama
                                     st.session_state.delivery_status = {}
                                     for g_id in sirali_df['Gizli_ID'].unique():
                                         st.session_state.delivery_status[g_id] = "pending"
@@ -660,7 +649,6 @@ with tab_harita:
     # --- ÜST KISIM: HARİTA BÖLÜMÜ VE SEVKİYAT KONTROLÜ ---
     if st.session_state.harita_hazir:
         with harita_kutusu:
-            # 🏁 SEVKİYAT BİTTİ Mİ KONTROLÜ
             pending_count = 0
             total_customers = 0
             
@@ -758,44 +746,38 @@ with tab_harita:
                     border_color = "#2196f3"
                     durak_etiketi = "📦 TESLİMAT"
                 
-                # 🌟 YENİ TASARIM: Ürün ve Adet Bilgisi Sağ Tarafta Dev Puntosuyla
+                # 🌟 SIFIR BOŞLUKLU HTML YAPI (MARKDOWN HATASINI ÖNLER)
                 urun_html = ""
                 if g_id != '-':
-                    urun_html = f"""
-                    <div style="text-align: right; background: rgba(255, 193, 7, 0.1); padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(255, 193, 7, 0.3); flex-shrink: 0; margin-left: 10px;">
-                        <div style="font-size: 22px; font-weight: 900; color: #ffc107; line-height: 1;">{row['Adet']} ADET</div>
-                        <div style="font-size: 13px; font-weight: 700; color: #fffde7; margin-top: 4px; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{row['Urun_Adi']}">{row['Urun_Adi']}</div>
-                    </div>
-                    """
+                    urun_html = f"""<div style="text-align: right; background: rgba(255, 193, 7, 0.1); padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(255, 193, 7, 0.3); flex-shrink: 0; margin-left: 10px;">
+<div style="font-size: 22px; font-weight: 900; color: #ffc107; line-height: 1;">{row['Adet']} ADET</div>
+<div style="font-size: 13px; font-weight: 700; color: #fffde7; margin-top: 4px; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{row['Urun_Adi']}">{row['Urun_Adi']}</div>
+</div>"""
                 
-                kart_html = f"""
-<div style="background: linear-gradient(145deg, #22232a, #2a2b33); padding: 20px; border-radius: 16px; margin-bottom: 10px; border-left: 6px solid {border_color}; box-shadow: 0 8px 20px rgba(0,0,0,0.15);">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <span style="background-color: {border_color}; color: white; padding: 6px 12px; border-radius: 8px; font-weight: 800; font-size: 16px;">#{durak_no}</span>
-            <span style="color: #b0b0b0; font-size: 11px; font-weight: 700; letter-spacing: 1px;">{durak_etiketi}</span>
-        </div>
-    </div>
-    
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
-        <div style="font-size: 20px; font-weight: 700; color: #ffffff; letter-spacing: 0.5px; flex: 1;">{row['Alici_Ad']}</div>
-        {urun_html}
-    </div>
-    
-    <div style="font-size: 13px; color: #b0b0b0; margin-bottom: 6px;">📦 Paket No: {row['Paket_No']}  |  📑 Sipariş: {row['Siparis_No']}</div>
-    <div style="font-size: 14px; color: #a0a0b0; margin-bottom: 20px; line-height: 1.5; display: flex; align-items: flex-start; gap: 6px;">
-        <span style="font-size: 16px;">📍</span><span>{row['Adres']}</span>
-    </div>
-    <div style="display: flex; gap: 10px;">
-        <a href="https://www.google.com/maps/dir/?api=1&destination={lat},{lon}" target="_blank" class="action-btn btn-maps">🗺️ Yol Tarifi</a>
-        <a href="tel:{tel_temiz}" class="action-btn btn-call">📞 Ara</a>
-        <a href="https://wa.me/{tel_temiz}" target="_blank" class="action-btn btn-wp">💬 WhatsApp</a>
-    </div>
+                kart_html = f"""<div style="background: linear-gradient(145deg, #22232a, #2a2b33); padding: 20px; border-radius: 16px; margin-bottom: 10px; border-left: 6px solid {border_color}; box-shadow: 0 8px 20px rgba(0,0,0,0.15);">
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+<div style="display: flex; align-items: center; gap: 10px;">
+<span style="background-color: {border_color}; color: white; padding: 6px 12px; border-radius: 8px; font-weight: 800; font-size: 16px;">#{durak_no}</span>
+<span style="color: #b0b0b0; font-size: 11px; font-weight: 700; letter-spacing: 1px;">{durak_etiketi}</span>
 </div>
-"""
+</div>
+<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
+<div style="font-size: 20px; font-weight: 700; color: #ffffff; letter-spacing: 0.5px; flex: 1;">{row['Alici_Ad']}</div>
+{urun_html}
+</div>
+<div style="font-size: 13px; color: #b0b0b0; margin-bottom: 6px;">📦 Paket No: {row['Paket_No']} &nbsp;|&nbsp; 📑 Sipariş: {row['Siparis_No']}</div>
+<div style="font-size: 14px; color: #a0a0b0; margin-bottom: 20px; line-height: 1.5; display: flex; align-items: flex-start; gap: 6px;">
+<span style="font-size: 16px;">📍</span><span>{row['Adres']}</span>
+</div>
+<div style="display: flex; gap: 10px;">
+<a href="https://www.google.com/maps/dir/?api=1&destination={lat},{lon}" target="_blank" class="action-btn btn-maps">🗺️ Yol Tarifi</a>
+<a href="tel:{tel_temiz}" class="action-btn btn-call">📞 Ara</a>
+<a href="https://wa.me/{tel_temiz}" target="_blank" class="action-btn btn-wp">💬 WhatsApp</a>
+</div>
+</div>"""
                 st.markdown(kart_html, unsafe_allow_html=True)
                 
-                # 🌟 ONAY VE MANUEL SIRALAMA BUTONLARI
+                # ONAY VE MANUEL SIRALAMA BUTONLARI
                 if status == 'pending':
                     if 1 < durak_no < len(st.session_state.sirali_df):
                         c_ok, c_fail, c_sira, c_tasi = st.columns([5, 5, 4, 3])
@@ -865,8 +847,7 @@ with tab_harita:
                         border_color = "#ff5252"
                         durak_etiketi = "❌ EDİLEMEDİ"
                         
-                    kart_html_comp = f"""
-<div style="background: {bg_grad}; padding: 15px; border-radius: 12px; margin-bottom: 10px; border-left: 6px solid {border_color}; opacity: 0.8;">
+                    kart_html_comp = f"""<div style="background: {bg_grad}; padding: 15px; border-radius: 12px; margin-bottom: 10px; border-left: 6px solid {border_color}; opacity: 0.8;">
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
 <div style="display: flex; align-items: center; gap: 10px;">
 <span style="background-color: {border_color}; color: white; padding: 4px 10px; border-radius: 8px; font-weight: 800; font-size: 14px;">#{durak_no}</span>
@@ -875,8 +856,7 @@ with tab_harita:
 </div>
 <div style="font-size: 18px; font-weight: 700; color: #ffffff; margin-bottom: 4px;"><del>{row['Alici_Ad']}</del></div>
 <div style="font-size: 12px; color: #b0b0b0;">📍 {str(row['Adres'])[:50]}...</div>
-</div>
-"""
+</div>"""
                     st.markdown(kart_html_comp, unsafe_allow_html=True)
                     
                     if st.button("↩️ İşlemi Geri Al", key=f"undo_{g_id}", use_container_width=True):
