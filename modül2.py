@@ -47,7 +47,6 @@ st.markdown("""
         box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
     }
     
-    /* İletişim / Yol Tarifi Butonları (Kart İçi HTML) */
     .action-btn {
         flex: 1;
         text-align: center;
@@ -72,7 +71,7 @@ st.markdown("""
     .btn-wp { background: linear-gradient(135deg, #25d366, #128c7e); box-shadow: 0 4px 10px rgba(37,211,102,0.3); }
     .btn-wp:hover { background: linear-gradient(135deg, #2ae06d, #159f8e); transform: scale(1.02); }
     
-    /* 🌟 STREAMLIT BUTONLARI (Şerit Liste Mantığı) 🌟 */
+    /* 🌟 ŞERİT BUTONLAR (Alternatifler İçin) 🌟 */
     div[data-testid="stButton"] button {
         background-color: #2b2b36;
         color: white;
@@ -83,7 +82,7 @@ st.markdown("""
         letter-spacing: 0.3px;
         transition: all 0.2s ease;
         box-shadow: 0 2px 5px rgba(0,0,0,0.15);
-        justify-content: flex-start !important; /* Yazıyı sola yaslar (Liste görünümü) */
+        justify-content: flex-start !important; 
         text-align: left !important;
     }
     div[data-testid="stButton"] button:hover {
@@ -92,7 +91,6 @@ st.markdown("""
         transform: translateY(-2px);
     }
     
-    /* Ana Aksiyon Butonları (İleri, Hesapla vb. ORTALANSIN) */
     div[data-testid="stButton"] button[kind="primary"] {
         background: linear-gradient(135deg, #1e88e5, #1565c0);
         border: none;
@@ -162,7 +160,6 @@ with tab_kurulum:
             st.progress((current) / total)
             
             if not st.session_state.awaiting_confirmation:
-                # SEÇİM EKRANI (ŞERİT BUTONLAR)
                 if 'current_step_memory' not in st.session_state or st.session_state.current_step_memory != current:
                     st.session_state.current_step_memory = current
                     st.session_state.custom_search = row['Adres']
@@ -181,28 +178,51 @@ with tab_kurulum:
                     st.session_state.custom_search = yeni_arama
                     st.rerun()
 
+                # --- GELİŞMİŞ ÇOKLU ARAMA MOTORU ---
                 @st.cache_data(show_spinner=False)
                 def get_candidates(api_key, address):
                     gmaps = googlemaps.Client(key=api_key)
-                    try:
-                        return gmaps.geocode(f"{address}, Türkiye")
-                    except:
-                        return []
-                
-                with st.spinner("Google Haritalar'dan alternatifler aranıyor..."):
-                    res = get_candidates(GOOGLE_MAPS_API_KEY, st.session_state.custom_search)
+                    candidates = []
+                    seen_addresses = set()
 
-                options = []
-                for r in res:
-                    options.append({
-                        "label": r['formatted_address'],
-                        "lat": r['geometry']['location']['lat'],
-                        "lng": r['geometry']['location']['lng']
-                    })
+                    def add_result(r):
+                        addr = r.get('formatted_address', '')
+                        if addr and addr not in seen_addresses:
+                            seen_addresses.add(addr)
+                            candidates.append({
+                                "label": addr,
+                                "lat": r['geometry']['location']['lat'],
+                                "lng": r['geometry']['location']['lng']
+                            })
+
+                    try:
+                        # 1. Standart Geocode
+                        geo = gmaps.geocode(f"{address}, Türkiye")
+                        for r in geo: add_result(r)
+
+                        # 2. Places API ile Mekan/Geniş Arama
+                        places = gmaps.places(query=f"{address} Türkiye")
+                        if 'results' in places:
+                            for r in places['results']: add_result(r)
+                            
+                        # 3. Hala az sonuç varsa Akıllı Temizleme (No/Daire silerek arama)
+                        if len(candidates) < 4:
+                            temiz_adres = re.sub(r'(?i)(no|numara|d|daire|kat|blok)\s*[:.]?\s*\d+', '', address)
+                            if temiz_adres != address:
+                                geo_temiz = gmaps.geocode(f"{temiz_adres}, Türkiye")
+                                for r in geo_temiz: add_result(r)
+                                
+                    except Exception as e:
+                        pass
+                    
+                    return candidates
+                
+                with st.spinner("Google Haritalar'dan tüm alternatifler çekiliyor..."):
+                    options = get_candidates(GOOGLE_MAPS_API_KEY, st.session_state.custom_search)
 
                 st.markdown("👇 **Haritaya pin atılacak konumu TIKLAYARAK seçin:**")
 
-                # Alternatifleri Tek Tıkla Seçilebilir Şerit Butonlar Haline Getirdik
+                # Dinamik Şerit Butonlar (Artık çok daha fazla alternatif çıkacak)
                 for i, opt in enumerate(options):
                     if st.button(f"📍 {opt['label']}", key=f"btn_opt_{current}_{i}", use_container_width=True):
                         st.session_state.temp_selection = opt['label']
@@ -211,7 +231,6 @@ with tab_kurulum:
                         st.session_state.awaiting_confirmation = True
                         st.rerun()
 
-                # Sabit Seçenekler (Yine Şerit Buton Olarak)
                 st.markdown("<br>", unsafe_allow_html=True)
                 
                 if st.button("⚠️ Orijinal metni kullan (Sisteme bırak)", key=f"btn_orig_{current}", use_container_width=True):
@@ -254,7 +273,6 @@ with tab_kurulum:
                         st.session_state.awaiting_confirmation = False
                         st.rerun()
                 with colB:
-                    # BİLGİLER DOĞRU BUTONU ARTIK PRIMARY
                     if st.button("✅ BİLGİLER DOĞRU, SIRADAKİNE GEÇ", type="primary", use_container_width=True):
                         if secim == "❌ Bu siparişi atla (Rotaya Ekleme)":
                             pass 
@@ -484,7 +502,6 @@ with tab_harita:
                                     sirali_df = df_filtered.iloc[rota_sirasi].copy().reset_index(drop=True)
                                     st.session_state.sirali_df = sirali_df 
                                     
-                                    # Teslimat durumlarını sıfırla
                                     st.session_state.delivery_status = {}
                                     for g_id in sirali_df['Gizli_ID'].unique():
                                         st.session_state.delivery_status[g_id] = "pending"
@@ -539,14 +556,13 @@ with tab_harita:
                 status = st.session_state.delivery_status.get(g_id, "pending")
                 popup_text = f"<b>Durak {idx+1}</b><br>{row['Alici_Ad']}<br>Tel: {row['Telefon']}"
                 
-                # Dinamik Harita Pin Renkleri
                 if g_id == '-':
                     if idx == 0: renk_hex = '#4caf50' 
                     else: renk_hex = '#ff5252' 
                 else:
-                    if status == "success": renk_hex = '#4caf50' # Teslim Edildi (Yeşil)
-                    elif status == "failed": renk_hex = '#ff5252' # Edilemedi (Kırmızı)
-                    else: renk_hex = '#2196f3' # Bekliyor (Mavi)
+                    if status == "success": renk_hex = '#4caf50' 
+                    elif status == "failed": renk_hex = '#ff5252' 
+                    else: renk_hex = '#2196f3' 
                     
                 marker_html = f'''
                 <div style="background-color: {renk_hex}; color: white; border-radius: 50%; width: 26px; height: 26px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 13px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.5);">
@@ -613,7 +629,6 @@ with tab_harita:
 """
                 st.markdown(kart_html, unsafe_allow_html=True)
                 
-                # Müşterilerde Onay / İptal Butonu (Şık, Sola Yaslı, Gri Tonlu Butonlar)
                 if status == 'pending':
                     col_ok, col_fail = st.columns(2)
                     with col_ok:
