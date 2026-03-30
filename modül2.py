@@ -20,19 +20,12 @@ GOOGLE_MAPS_API_KEY = "AIzaSyAbn2TCWJDpKimkoKKb0cNcGWQj9gUF-Mg"
 st.set_page_config(page_title="Ersan Dizayn Rota Paneli", layout="wide", initial_sidebar_state="collapsed")
 
 # 🌟 PREMIUM TASARIM CSS ENJEKSİYONU 🌟
-# (Sıkıştırılmış CSS eski geniş ve okunabilir haline getirildi)
 st.markdown("""
 <style>
     /* Menü ve Footer Gizleme */
-    #MainMenu {
-        visibility: hidden;
-    }
-    footer {
-        visibility: hidden;
-    }
-    header {
-        visibility: hidden;
-    }
+    #MainMenu { visibility: hidden; }
+    footer { visibility: hidden; }
+    header { visibility: hidden; }
 
     /* Sekme Tasarımları */
     .stTabs [data-baseweb="tab-list"] {
@@ -56,7 +49,7 @@ st.markdown("""
         box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
     }
     
-    /* Aksiyon Butonları */
+    /* Aksiyon Butonları (Yol Tarifi vb) */
     .action-btn {
         flex: 1;
         text-align: center;
@@ -72,30 +65,12 @@ st.markdown("""
         align-items: center;
         gap: 6px;
     }
-    .btn-maps { 
-        background: linear-gradient(135deg, #1e88e5, #1565c0); 
-        box-shadow: 0 4px 10px rgba(30,136,229,0.3); 
-    }
-    .btn-maps:hover { 
-        background: linear-gradient(135deg, #2196f3, #1976d2); 
-        transform: scale(1.02); 
-    }
-    .btn-call { 
-        background: linear-gradient(135deg, #43a047, #2e7d32); 
-        box-shadow: 0 4px 10px rgba(67,160,71,0.3); 
-    }
-    .btn-call:hover { 
-        background: linear-gradient(135deg, #4caf50, #388e3c); 
-        transform: scale(1.02); 
-    }
-    .btn-wp { 
-        background: linear-gradient(135deg, #25d366, #128c7e); 
-        box-shadow: 0 4px 10px rgba(37,211,102,0.3); 
-    }
-    .btn-wp:hover { 
-        background: linear-gradient(135deg, #2ae06d, #159f8e); 
-        transform: scale(1.02); 
-    }
+    .btn-maps { background: linear-gradient(135deg, #1e88e5, #1565c0); box-shadow: 0 4px 10px rgba(30,136,229,0.3); }
+    .btn-maps:hover { background: linear-gradient(135deg, #2196f3, #1976d2); transform: scale(1.02); }
+    .btn-call { background: linear-gradient(135deg, #43a047, #2e7d32); box-shadow: 0 4px 10px rgba(67,160,71,0.3); }
+    .btn-call:hover { background: linear-gradient(135deg, #4caf50, #388e3c); transform: scale(1.02); }
+    .btn-wp { background: linear-gradient(135deg, #25d366, #128c7e); box-shadow: 0 4px 10px rgba(37,211,102,0.3); }
+    .btn-wp:hover { background: linear-gradient(135deg, #2ae06d, #159f8e); transform: scale(1.02); }
     
     /* Streamlit Şerit Buton Tasarımları */
     div[data-testid="stButton"] button {
@@ -126,10 +101,31 @@ st.markdown("""
     div[data-testid="stButton"] button[kind="primary"]:hover {
         background: linear-gradient(135deg, #2196f3, #1976d2);
     }
+
+    /* 🌟 PREMIUM SIRA GİRİŞ KUTUSU TASARIMI 🌟 */
+    div[data-testid="stNumberInput"] > div > div > input {
+        background-color: #2b2b36 !important;
+        color: white !important;
+        border: 1px solid #444 !important;
+        border-radius: 8px !important;
+        padding: 13px 10px !important;
+        font-weight: 700 !important;
+        text-align: center !important;
+        font-size: 16px !important;
+        transition: all 0.3s ease !important;
+    }
+    div[data-testid="stNumberInput"] > div > div > input:focus {
+        border-color: #1e88e5 !important;
+        box-shadow: 0 0 8px rgba(30,136,229,0.5) !important;
+    }
+    /* Kutu İçindeki O Çirkin Artı Eksi (+) (-) Butonlarını Gizle */
+    div[data-testid="stNumberInputStepUp"], div[data-testid="stNumberInputStepDown"] {
+        display: none !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# 🧠 YAPAY ZEKA: ÇOKLU ARAMA MOTORU (Genişletilmiş Kod)
+# 🧠 YAPAY ZEKA: ÇOKLU ARAMA MOTORU
 @st.cache_data(show_spinner=False)
 def get_candidates(api_key, address):
     gmaps = googlemaps.Client(key=api_key)
@@ -153,7 +149,7 @@ def get_candidates(api_key, address):
     except: 
         pass
 
-    # 2. Aşama: Temizlenmiş Arama (Eğer sonuç azsa)
+    # 2. Aşama: Temizlenmiş Arama
     if len(candidates) < 4:
         try:
             temiz_adres = re.sub(r'(?i)\b(no|numara|d|daire|kat|blok|iç kapı)\b\s*[:.]?\s*\d*[/a-zA-Z\d-]*', '', address)
@@ -163,7 +159,7 @@ def get_candidates(api_key, address):
         except: 
             pass
     
-    # 3. Aşama: Bölgesel Arama (Sadece son kelimeler)
+    # 3. Aşama: Bölgesel Arama
     if len(candidates) < 4:
         try:
             kelimeler = address.replace(',', ' ').split()
@@ -178,7 +174,7 @@ def get_candidates(api_key, address):
 st.title("🚚 Ersan Dizayn Rota Kontrol Merkezi")
 
 # ==========================================
-# SESSION STATE DEĞİŞKENLERİ (Her biri ayrı satırda)
+# SESSION STATE DEĞİŞKENLERİ
 # ==========================================
 if 'harita_hazir' not in st.session_state: 
     st.session_state.harita_hazir = False
@@ -205,7 +201,6 @@ if 'manual_search_results' not in st.session_state:
 if 'manual_selected' not in st.session_state: 
     st.session_state.manual_selected = None
 
-# SEKMELER
 tab_kurulum, tab_harita = st.tabs(["📂 1. Veri Yükleme ve Doğrulama", "🗺️ 2. Planlama ve Harita"])
 
 # --- SEKME 1: 📂 VERİ YÜKLEME VE ADRES DOĞRULAMA ---
@@ -506,7 +501,7 @@ with tab_harita:
 
                                 nodes = []
                                 
-                                # Başlangıç Düğümü Ekleme
+                                # Başlangıç Düğümü
                                 if start_tip != "musteri":
                                     if start_tip == "depo":
                                         s_ad, s_adres = "🏢 DEPO", "Ersan Dizayn, İstanbul"
@@ -518,7 +513,7 @@ with tab_harita:
                                     nodes.append({'Siparis_No': 'START', 'Paket_No': '-', 'Gizli_ID': '-', 'Alici_Ad': s_ad, 'Adres': s_adres, 'Telefon': '-'})
                                     start_node_index = 0
 
-                                # Bitiş Düğümü Ekleme
+                                # Bitiş Düğümü
                                 if not ring_rotasi and end_tip != "musteri":
                                     if end_tip == "depo":
                                         e_ad, e_adres = "🏢 DEPO", "Ersan Dizayn, İstanbul"
@@ -546,7 +541,7 @@ with tab_harita:
                                 df_all = pd.DataFrame(nodes)
                                 enlemler, boylamlar, gecerli_indeksler = [], [], []
 
-                                # Adres Koordinatlarını Çözme
+                                # Koordinatları Çözme
                                 for i, adres in enumerate(df_all['Adres']):
                                     lat, lon = 0.0, 0.0
                                     gizli_id = df_all['Gizli_ID'].iloc[i]
@@ -586,7 +581,6 @@ with tab_harita:
                                 df_filtered['Enlem'] = enlemler
                                 df_filtered['Boylam'] = boylamlar
 
-                                # Mesafe Matrisi Hesaplama Formülü
                                 def mesafe_hesapla(lat1, lon1, lat2, lon2):
                                     R = 6371 
                                     phi1, phi2 = math.radians(lat1), math.radians(lat2)
@@ -710,7 +704,7 @@ with tab_harita:
             
             st.download_button("📥 Optimize Edilmiş Rotayı Excel Olarak İndir", data=st.session_state.buffer, file_name=st.session_state.dosya_adi, mime="application/vnd.ms-excel")
 
-    # --- ALT KISIM: ŞOFÖR MODU (SÜRÜKLE BIRAK MANTIKLI MANUEL SIRALAMA) ---
+    # --- ALT KISIM: ŞOFÖR MODU (MANUEL SIRALAMA VE ONAY SİSTEMİ) ---
     if st.session_state.harita_hazir:
         with liste_kutusu:
             st.markdown("### 📱 Teslimat Sırası (Şoför Modu)")
@@ -775,7 +769,7 @@ with tab_harita:
 """
                 st.markdown(kart_html, unsafe_allow_html=True)
                 
-                # 🌟 ONAY VE MANUEL SIRALAMA BUTONLARI (Hepsi Bir Arada)
+                # 🌟 ONAY VE MANUEL SIRALAMA BUTONLARI
                 if status == 'pending':
                     c_ok, c_fail, c_sira, c_tasi = st.columns([5, 5, 4, 3])
                     
@@ -790,11 +784,11 @@ with tab_harita:
                             st.rerun()
                     
                     with c_sira:
-                        # Seçilen müşteriyi istenilen sıraya koyabilmek için Numara Kutusu
-                        hedef_sira = st.number_input("Sıra No", min_value=1, max_value=len(st.session_state.sirali_df), value=durak_no, key=f"sira_{g_id}", label_visibility="collapsed")
+                        # Maksimum değeri hesaplayarak Başlangıç ve Bitişi koruma altına alıyoruz
+                        maks_durak = max(2, len(st.session_state.sirali_df) - 1)
+                        hedef_sira = st.number_input("Sıra No", min_value=2, max_value=maks_durak, value=durak_no, key=f"sira_{g_id}", label_visibility="collapsed")
                     
                     with c_tasi:
-                        # 🔄 Rotayı Düzenleme Mantığı (Sürükle-Bırak hissi)
                         if st.button("🔄 Taşı", key=f"move_{g_id}", use_container_width=True):
                             eski_idx = idx
                             yeni_idx = hedef_sira - 1
@@ -816,7 +810,7 @@ with tab_harita:
                                     st.session_state.sirali_df.to_excel(writer, index=False)
                                     
                                 st.session_state.buffer = buffer
-                                st.rerun()
+                                st.rerun() # UI'yi anında günceller
                     
                     st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
 
