@@ -20,12 +20,21 @@ GOOGLE_MAPS_API_KEY = "AIzaSyAbn2TCWJDpKimkoKKb0cNcGWQj9gUF-Mg"
 st.set_page_config(page_title="Ersan Dizayn Rota Paneli", layout="wide", initial_sidebar_state="collapsed")
 
 # 🌟 PREMIUM TASARIM CSS ENJEKSİYONU 🌟
+# (Sıkıştırılmış CSS eski geniş ve okunabilir haline getirildi)
 st.markdown("""
 <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
+    /* Menü ve Footer Gizleme */
+    #MainMenu {
+        visibility: hidden;
+    }
+    footer {
+        visibility: hidden;
+    }
+    header {
+        visibility: hidden;
+    }
 
+    /* Sekme Tasarımları */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
         background-color: transparent;
@@ -47,6 +56,7 @@ st.markdown("""
         box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
     }
     
+    /* Aksiyon Butonları */
     .action-btn {
         flex: 1;
         text-align: center;
@@ -62,16 +72,32 @@ st.markdown("""
         align-items: center;
         gap: 6px;
     }
-    .btn-maps { background: linear-gradient(135deg, #1e88e5, #1565c0); box-shadow: 0 4px 10px rgba(30,136,229,0.3); }
-    .btn-maps:hover { background: linear-gradient(135deg, #2196f3, #1976d2); transform: scale(1.02); }
+    .btn-maps { 
+        background: linear-gradient(135deg, #1e88e5, #1565c0); 
+        box-shadow: 0 4px 10px rgba(30,136,229,0.3); 
+    }
+    .btn-maps:hover { 
+        background: linear-gradient(135deg, #2196f3, #1976d2); 
+        transform: scale(1.02); 
+    }
+    .btn-call { 
+        background: linear-gradient(135deg, #43a047, #2e7d32); 
+        box-shadow: 0 4px 10px rgba(67,160,71,0.3); 
+    }
+    .btn-call:hover { 
+        background: linear-gradient(135deg, #4caf50, #388e3c); 
+        transform: scale(1.02); 
+    }
+    .btn-wp { 
+        background: linear-gradient(135deg, #25d366, #128c7e); 
+        box-shadow: 0 4px 10px rgba(37,211,102,0.3); 
+    }
+    .btn-wp:hover { 
+        background: linear-gradient(135deg, #2ae06d, #159f8e); 
+        transform: scale(1.02); 
+    }
     
-    .btn-call { background: linear-gradient(135deg, #43a047, #2e7d32); box-shadow: 0 4px 10px rgba(67,160,71,0.3); }
-    .btn-call:hover { background: linear-gradient(135deg, #4caf50, #388e3c); transform: scale(1.02); }
-    
-    .btn-wp { background: linear-gradient(135deg, #25d366, #128c7e); box-shadow: 0 4px 10px rgba(37,211,102,0.3); }
-    .btn-wp:hover { background: linear-gradient(135deg, #2ae06d, #159f8e); transform: scale(1.02); }
-    
-    /* 🌟 ŞERİT BUTONLAR (Alternatifler İçin) 🌟 */
+    /* Streamlit Şerit Buton Tasarımları */
     div[data-testid="stButton"] button {
         background-color: #2b2b36;
         color: white;
@@ -90,7 +116,6 @@ st.markdown("""
         border-color: #1e88e5;
         transform: translateY(-2px);
     }
-    
     div[data-testid="stButton"] button[kind="primary"] {
         background: linear-gradient(135deg, #1e88e5, #1565c0);
         border: none;
@@ -104,7 +129,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 🧠 YAPAY ZEKA: ÇOKLU ARAMA MOTORU (Genişletildi ve Dışarı Alındı)
+# 🧠 YAPAY ZEKA: ÇOKLU ARAMA MOTORU (Genişletilmiş Kod)
 @st.cache_data(show_spinner=False)
 def get_candidates(api_key, address):
     gmaps = googlemaps.Client(key=api_key)
@@ -122,46 +147,65 @@ def get_candidates(api_key, address):
                     "lng": r['geometry']['location']['lng']
                 })
 
-    try: add_result(gmaps.geocode(f"{address}, Türkiye"))
-    except: pass
+    # 1. Aşama: Normal Arama
+    try: 
+        add_result(gmaps.geocode(f"{address}, Türkiye"))
+    except: 
+        pass
 
+    # 2. Aşama: Temizlenmiş Arama (Eğer sonuç azsa)
     if len(candidates) < 4:
         try:
             temiz_adres = re.sub(r'(?i)\b(no|numara|d|daire|kat|blok|iç kapı)\b\s*[:.]?\s*\d*[/a-zA-Z\d-]*', '', address)
             temiz_adres = temiz_adres.replace("/", " ").replace("-", " ")
             if temiz_adres.strip() != address.strip():
                 add_result(gmaps.geocode(f"{temiz_adres.strip()}, Türkiye"))
-        except: pass
+        except: 
+            pass
     
+    # 3. Aşama: Bölgesel Arama (Sadece son kelimeler)
     if len(candidates) < 4:
         try:
             kelimeler = address.replace(',', ' ').split()
             if len(kelimeler) > 3:
                 son_kisim = " ".join(kelimeler[-4:])
                 add_result(gmaps.geocode(f"{son_kisim}, Türkiye"))
-        except: pass
+        except: 
+            pass
 
     return candidates
 
 st.title("🚚 Ersan Dizayn Rota Kontrol Merkezi")
 
-# SESSION STATE DEĞİŞKENLERİ
-if 'harita_hazir' not in st.session_state: st.session_state.harita_hazir = False
-if 'wizard_step' not in st.session_state: st.session_state.wizard_step = 0
-if 'validated_data' not in st.session_state: st.session_state.validated_data = []
-if 'validation_complete' not in st.session_state: st.session_state.validation_complete = False
-if 'awaiting_confirmation' not in st.session_state: st.session_state.awaiting_confirmation = False
-if 'temp_selection' not in st.session_state: st.session_state.temp_selection = None
-if 'temp_lat' not in st.session_state: st.session_state.temp_lat = None
-if 'temp_lng' not in st.session_state: st.session_state.temp_lng = None
-if 'delivery_status' not in st.session_state: st.session_state.delivery_status = {} 
+# ==========================================
+# SESSION STATE DEĞİŞKENLERİ (Her biri ayrı satırda)
+# ==========================================
+if 'harita_hazir' not in st.session_state: 
+    st.session_state.harita_hazir = False
+if 'wizard_step' not in st.session_state: 
+    st.session_state.wizard_step = 0
+if 'validated_data' not in st.session_state: 
+    st.session_state.validated_data = []
+if 'validation_complete' not in st.session_state: 
+    st.session_state.validation_complete = False
+if 'awaiting_confirmation' not in st.session_state: 
+    st.session_state.awaiting_confirmation = False
+if 'temp_selection' not in st.session_state: 
+    st.session_state.temp_selection = None
+if 'temp_lat' not in st.session_state: 
+    st.session_state.temp_lat = None
+if 'temp_lng' not in st.session_state: 
+    st.session_state.temp_lng = None
+if 'delivery_status' not in st.session_state: 
+    st.session_state.delivery_status = {} 
 if 'df_validated' not in st.session_state: 
     st.session_state.df_validated = pd.DataFrame(columns=['Paket_No', 'Siparis_No', 'Alici_Ad', 'Adres', 'Telefon', 'Gizli_ID', 'Onayli_Enlem', 'Onayli_Boylam'])
+if 'manual_search_results' not in st.session_state: 
+    st.session_state.manual_search_results = []
+if 'manual_selected' not in st.session_state: 
+    st.session_state.manual_selected = None
 
-# MANUEL EKLEME İÇİN DEĞİŞKENLER
-if 'manual_search_results' not in st.session_state: st.session_state.manual_search_results = []
-if 'manual_selected' not in st.session_state: st.session_state.manual_selected = None
-
+# SEKMELER
 tab_kurulum, tab_harita = st.tabs(["📂 1. Veri Yükleme ve Doğrulama", "🗺️ 2. Planlama ve Harita"])
 
 # --- SEKME 1: 📂 VERİ YÜKLEME VE ADRES DOĞRULAMA ---
@@ -184,7 +228,6 @@ with tab_kurulum:
             df_raw['Paket_No'] = df_raw['Paket_No'].astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '-')
             df_raw['Siparis_No'] = df_raw['Siparis_No'].astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '-')
             df_raw['Telefon'] = df_raw['Telefon'].astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '-')
-            
             df_raw['Gizli_ID'] = df_raw.index + 1
             
             st.session_state.raw_df = df_raw
@@ -217,9 +260,9 @@ with tab_kurulum:
 </div>
 """
                 st.markdown(html_secim, unsafe_allow_html=True)
-
-                st.info("💡 **TÜYO:** Eğer altta çok az seçenek çıkıyorsa, aşağıdaki kutudan bina numarasını ve daireyi silip sadece **Sokak/Mahalle/İlçe** bırakıp Enter'a basın.")
+                st.info("💡 **TÜYO:** Çok az seçenek çıkıyorsa, bina numarası ve daireyi silip sadece **Sokak/Mahalle/İlçe** bırakıp Enter'a basın.")
                 yeni_arama = st.text_area("🔍 Adresi sadeleştirip tekrar ara (Enter'a bas):", value=st.session_state.custom_search, height=80)
+                
                 if yeni_arama != st.session_state.custom_search:
                     st.session_state.custom_search = yeni_arama
                     st.rerun()
@@ -228,8 +271,6 @@ with tab_kurulum:
                     options = get_candidates(GOOGLE_MAPS_API_KEY, st.session_state.custom_search)
 
                 st.markdown("👇 **Haritaya pin atılacak konumu TIKLAYARAK seçin:**")
-
-                # Şerit Butonlar (Alternatifler)
                 for i, opt in enumerate(options):
                     if st.button(f"📍 {opt['label']}", key=f"btn_opt_{current}_{i}", use_container_width=True):
                         st.session_state.temp_selection = opt['label']
@@ -239,12 +280,10 @@ with tab_kurulum:
                         st.rerun()
 
                 st.markdown("<br>", unsafe_allow_html=True)
-                
                 if st.button("⚠️ Orijinal metni kullan (Sisteme bırak)", key=f"btn_orig_{current}", use_container_width=True):
                     st.session_state.temp_selection = "⚠️ Orijinal metni kullan (Sisteme bırak)"
                     st.session_state.awaiting_confirmation = True
                     st.rerun()
-                    
                 if st.button("❌ Bu siparişi atla (Rotaya Ekleme)", key=f"btn_skip_{current}", use_container_width=True):
                     st.session_state.temp_selection = "❌ Bu siparişi atla (Rotaya Ekleme)"
                     st.session_state.awaiting_confirmation = True
@@ -253,7 +292,7 @@ with tab_kurulum:
                 st.markdown("---")
                 if st.button("⬅️ Önceki Kayıt (Geri Dön)", disabled=(current == 0), use_container_width=True):
                     st.session_state.wizard_step -= 1
-                    if len(st.session_state.validated_data) > 0:
+                    if len(st.session_state.validated_data) > 0: 
                         st.session_state.validated_data.pop()
                     st.rerun()
 
@@ -269,7 +308,6 @@ with tab_kurulum:
                 
                 st.markdown("---")
                 yeni_musteri_adi = st.text_input("👤 Müşteri Adı (Yanlışsa düzeltebilirsiniz):", value=row['Alici_Ad'])
-                
                 st.info(f"📝 **Excel'deki Adres:**\n\n{row['Adres']}")
                 st.warning(f"📍 **Haritada Seçilen Hedef:**\n\n{secim}")
                 
@@ -281,7 +319,7 @@ with tab_kurulum:
                         st.rerun()
                 with colB:
                     if st.button("✅ BİLGİLER DOĞRU, SIRADAKİNE GEÇ", type="primary", use_container_width=True):
-                        if secim == "❌ Bu siparişi atla (Rotaya Ekleme)":
+                        if secim == "❌ Bu siparişi atla (Rotaya Ekleme)": 
                             pass 
                         elif secim == "⚠️ Orijinal metni kullan (Sisteme bırak)":
                             row_dict = row.to_dict()
@@ -316,45 +354,38 @@ with tab_harita:
     st.markdown("---") 
     liste_kutusu = st.container()
     
-    # ➕ MANUEL SİPARİŞ EKLEME KUTUSU (YENİ ÖZELLİK)
+    # ➕ MANUEL SİPARİŞ EKLEME KUTUSU
     with manuel_ekleme_kutusu:
         with st.expander("➕ MANUEL SİPARİŞ / YENİ ADRES EKLE (Tıkla Aç)", expanded=False):
             st.markdown("WhatsApp'tan vb. gelen anlık siparişleri Excel'e dokunmadan buradan ekleyebilirsiniz.")
-            
-            # ARAMA BÖLÜMÜ
             col_search, col_btn = st.columns([4, 1])
-            with col_search:
-                man_arama = st.text_input("📍 Aranacak Adresi Yazın (Mahalle, Sokak, İlçe vb.):")
+            with col_search: 
+                man_arama = st.text_input("📍 Aranacak Adresi Yazın:")
             with col_btn:
                 st.markdown("<br>", unsafe_allow_html=True)
                 if st.button("Adresi Bul 🔍", use_container_width=True):
                     if man_arama.strip() != "":
-                        if GOOGLE_MAPS_API_KEY == "BURAYA_KENDI_API_ANAHTARINI_YAZ":
+                        if GOOGLE_MAPS_API_KEY == "BURAYA_KENDI_API_ANAHTARINI_YAZ": 
                             st.error("API Anahtarı eksik!")
                         else:
                             with st.spinner("Aranıyor..."):
                                 st.session_state.manual_search_results = get_candidates(GOOGLE_MAPS_API_KEY, man_arama)
                                 st.session_state.manual_selected = None
             
-            # ŞERİT SONUÇLAR
             if st.session_state.get('manual_search_results') and not st.session_state.get('manual_selected'):
-                st.markdown("👇 **Haritaya pin atılacak konumu TIKLAYARAK seçin:**")
                 for i, opt in enumerate(st.session_state.manual_search_results):
                     if st.button(f"📍 {opt['label']}", key=f"man_add_opt_{i}", use_container_width=True):
                         st.session_state.manual_selected = opt
                         st.rerun()
             
-            # BİLGİ GİRİŞİ (ONAY) EKRANI
             if st.session_state.get('manual_selected'):
                 st.success(f"✅ Seçilen Konum: {st.session_state.manual_selected['label']}")
-                
                 m_ad = st.text_input("👤 Müşteri Adı:", placeholder="Örn: Ahmet Yılmaz")
-                col1, col2, col3 = st.columns(3)
-                m_tel = col1.text_input("📞 Telefon:")
-                m_sip = col2.text_input("📑 Sipariş No:")
-                m_pak = col3.text_input("📦 Paket No:")
+                c1, c2, c3 = st.columns(3)
+                m_tel = c1.text_input("📞 Telefon:")
+                m_sip = c2.text_input("📑 Sipariş No:")
+                m_pak = c3.text_input("📦 Paket No:")
                 
-                st.markdown("<br>", unsafe_allow_html=True)
                 col_iptal, col_ekle = st.columns(2)
                 with col_iptal:
                     if st.button("⬅️ İptal Et", use_container_width=True):
@@ -364,31 +395,29 @@ with tab_harita:
                 with col_ekle:
                     if st.button("💾 Kaydet ve Listeye Ekle", type="primary", use_container_width=True):
                         max_id = 0
-                        if len(st.session_state.df_validated) > 0:
+                        if len(st.session_state.df_validated) > 0: 
                             max_id = st.session_state.df_validated['Gizli_ID'].max()
                         
                         new_row = {
-                            'Paket_No': m_pak if m_pak else "-",
+                            'Paket_No': m_pak if m_pak else "-", 
                             'Siparis_No': m_sip if m_sip else "-",
-                            'Alici_Ad': m_ad if m_ad else "Manuel Müşteri",
+                            'Alici_Ad': m_ad if m_ad else "Manuel Müşteri", 
                             'Adres': st.session_state.manual_selected['label'],
-                            'Telefon': m_tel if m_tel else "-",
+                            'Telefon': m_tel if m_tel else "-", 
                             'Gizli_ID': max_id + 1,
-                            'Onayli_Enlem': st.session_state.manual_selected['lat'],
+                            'Onayli_Enlem': st.session_state.manual_selected['lat'], 
                             'Onayli_Boylam': st.session_state.manual_selected['lng']
                         }
-                        
                         st.session_state.df_validated = pd.concat([st.session_state.df_validated, pd.DataFrame([new_row])], ignore_index=True)
-                        st.session_state.validation_complete = True # Manuel girişle rota başlatabilmek için
+                        st.session_state.validation_complete = True 
                         st.session_state.manual_selected = None
                         st.session_state.manual_search_results = []
-                        st.success("✅ Sipariş başarıyla listeye eklendi! Rotayı yeniden hesaplayabilirsiniz.")
+                        st.success("✅ Eklendi! Rotayı yeniden hesaplayabilirsiniz.")
                         st.rerun()
 
-    # 🔄 ROTA AYARLARI
+    # 🔄 ROTA AYARLARI VE HESAPLAMA
     with ayarlar_kutusu:
         st.markdown("### 🔄 Rota Ayarları (Yeniden Planla)")
-        
         if len(st.session_state.df_validated) == 0:
             st.warning("👈 Excel yükleyerek veya 'Manuel Sipariş Ekle' bölümünden sipariş ekleyin.")
         else:
@@ -398,107 +427,126 @@ with tab_harita:
                 secenek_mapping = {}
                 
                 if st.session_state.harita_hazir and 'sirali_df' in st.session_state:
-                    durak_map = {}
-                    for i, r in st.session_state.sirali_df.iterrows():
-                        if pd.notna(r.get('Gizli_ID')) and r.get('Gizli_ID') != '-':
-                            durak_map[r['Gizli_ID']] = i + 1  
-                            
+                    durak_map = {r['Gizli_ID']: i + 1 for i, r in st.session_state.sirali_df.iterrows() if pd.notna(r.get('Gizli_ID')) and r.get('Gizli_ID') != '-'}
                     for idx, row in df_excel.iterrows():
                         gizli_id = row['Gizli_ID']
-                        if gizli_id in durak_map:
+                        if gizli_id in durak_map: 
                             d_no = durak_map[gizli_id]
                             text = f"[{d_no}. Durak] {row['Alici_Ad']} ➔ {str(row['Adres'])[:35]}..."
                             sort_key = d_no
-                        else:
+                        else: 
+                            d_no = None
                             text = f"[Yeni Eklendi] {row['Alici_Ad']} ➔ {str(row['Adres'])[:35]}..."
                             sort_key = 9999 + gizli_id
                         musteriler.append({"text": text, "sort_key": sort_key, "excel_idx": idx})
                     musteriler.sort(key=lambda x: x["sort_key"])
                 else:
                     for idx, row in df_excel.iterrows():
-                        text = f"[{idx+1}. Sıra] {row['Alici_Ad']} ➔ {str(row['Adres'])[:35]}..."
-                        musteriler.append({"text": text, "excel_idx": idx})
+                        musteriler.append({"text": f"[{idx+1}. Sıra] {row['Alici_Ad']} ➔ {str(row['Adres'])[:35]}...", "excel_idx": idx})
                         
                 musteri_listesi = [m["text"] for m in musteriler]
                 secenek_mapping = {m["text"]: m["excel_idx"] for m in musteriler}
-                
                 secenekler = ["📍 GPS ile Konumumu Al", "🏢 Depo (Ersan Dizayn, İstanbul)", "✍️ Farklı Bir Adres Yaz"] + musteri_listesi
                 
                 default_baslangic_idx = 3 if len(musteri_listesi) > 0 else 0
                 default_bitis_idx = len(secenekler) - 1 if len(musteri_listesi) > 0 else 0
                 
                 col_ayar1, col_ayar2 = st.columns(2)
-                with col_ayar1:
+                with col_ayar1: 
                     secilen_baslangic = st.selectbox("🟢 Başlangıç Noktası:", secenekler, index=default_baslangic_idx)
                 with col_ayar2:
                     ring_rotasi = st.checkbox("🔄 Rotayı bitirince tekrar Başlangıç Noktasına dön", value=False)
-                    if not ring_rotasi:
-                        secilen_bitis = st.selectbox("🔴 Bitiş Noktası:", secenekler, index=default_bitis_idx)
-                    else:
+                    if ring_rotasi:
                         secilen_bitis = secilen_baslangic
+                    else:
+                        secilen_bitis = st.selectbox("🔴 Bitiş Noktası:", secenekler, index=default_bitis_idx)
                         
                 gps_lazim = ("📍 GPS ile Konumumu Al" in [secilen_baslangic, secilen_bitis])
-                loc = None
                 if gps_lazim:
-                    st.info("👇 Lütfen mevcut konumunuzu almak için aşağıdaki butona basın.")
                     loc = streamlit_geolocation()
+                else:
+                    loc = None
 
-                ozel_baslangic = ""
-                ozel_bitis = ""
                 if secilen_baslangic == "✍️ Farklı Bir Adres Yaz":
                     ozel_baslangic = st.text_input("🟢 Başlangıç Adresinizi Yazın:")
+                else:
+                    ozel_baslangic = ""
+                    
                 if not ring_rotasi and secilen_bitis == "✍️ Farklı Bir Adres Yaz":
                     ozel_bitis = st.text_input("🔴 Bitiş Adresinizi Yazın:")
+                else:
+                    ozel_bitis = ""
 
                 if st.button("🚀 Rotayı Hesapla ve Haritayı Çiz", type="primary", use_container_width=True):
-                    if gps_lazim and not (loc and loc.get('latitude')):
+                    if gps_lazim and not (loc and loc.get('latitude')): 
                         st.error("Lütfen GPS konumunuzu almak için yukarıdaki butona tıklayın!")
-                    elif secilen_baslangic == "✍️ Farklı Bir Adres Yaz" and not ozel_baslangic:
+                    elif secilen_baslangic == "✍️ Farklı Bir Adres Yaz" and not ozel_baslangic: 
                         st.error("Lütfen özel başlangıç adresini yazın!")
-                    elif not ring_rotasi and secilen_bitis == "✍️ Farklı Bir Adres Yaz" and not ozel_bitis:
+                    elif not ring_rotasi and secilen_bitis == "✍️ Farklı Bir Adres Yaz" and not ozel_bitis: 
                         st.error("Lütfen özel bitiş adresini yazın!")
                     else:
-                        with st.spinner('📍 Onaylı koordinatlar yapay zekaya iletiliyor, rota çiziliyor...'):
+                        with st.spinner('📍 Yapay Zeka en kısa rotayı hesaplıyor, lütfen bekleyin...'):
                             try:
                                 gmaps = googlemaps.Client(key=GOOGLE_MAPS_API_KEY)
                                 
                                 def parse_secim(secim):
-                                    if secim.startswith("🏢"): return "depo", None
-                                    elif secim.startswith("📍"): return "gps", None
-                                    elif secim.startswith("✍️"): return "ozel", None
-                                    elif secim in secenek_mapping: return "musteri", secenek_mapping[secim]
-                                    else: return "unknown", None
+                                    if secim.startswith("🏢"): 
+                                        return "depo", None
+                                    elif secim.startswith("📍"): 
+                                        return "gps", None
+                                    elif secim.startswith("✍️"): 
+                                        return "ozel", None
+                                    elif secim in secenek_mapping: 
+                                        return "musteri", secenek_mapping[secim]
+                                    else: 
+                                        return "unknown", None
 
                                 start_tip, start_idx_raw = parse_secim(secilen_baslangic)
                                 end_tip, end_idx_raw = parse_secim(secilen_bitis)
 
                                 nodes = []
-                                start_node_index, end_node_index = None, None
-
+                                
+                                # Başlangıç Düğümü Ekleme
                                 if start_tip != "musteri":
-                                    if start_tip == "depo": s_ad, s_adres = "🏢 DEPO", "Ersan Dizayn, İstanbul"
-                                    elif start_tip == "gps": s_ad, s_adres = "📍 ŞOFÖR (GPS)", f"{loc['latitude']},{loc['longitude']}"
-                                    else: s_ad, s_adres = "🟢 ÖZEL BAŞLANGIÇ", ozel_baslangic
+                                    if start_tip == "depo":
+                                        s_ad, s_adres = "🏢 DEPO", "Ersan Dizayn, İstanbul"
+                                    elif start_tip == "gps":
+                                        s_ad, s_adres = "📍 ŞOFÖR (GPS)", f"{loc['latitude']},{loc['longitude']}"
+                                    else:
+                                        s_ad, s_adres = "🟢 ÖZEL BAŞLANGIÇ", ozel_baslangic
+                                        
                                     nodes.append({'Siparis_No': 'START', 'Paket_No': '-', 'Gizli_ID': '-', 'Alici_Ad': s_ad, 'Adres': s_adres, 'Telefon': '-'})
                                     start_node_index = 0
 
+                                # Bitiş Düğümü Ekleme
                                 if not ring_rotasi and end_tip != "musteri":
-                                    if end_tip == "depo": e_ad, e_adres = "🏢 DEPO", "Ersan Dizayn, İstanbul"
-                                    elif end_tip == "gps": e_ad, e_adres = "📍 ŞOFÖR (GPS)", f"{loc['latitude']},{loc['longitude']}"
-                                    else: e_ad, e_adres = "🔴 ÖZEL BİTİŞ", ozel_bitis
+                                    if end_tip == "depo":
+                                        e_ad, e_adres = "🏢 DEPO", "Ersan Dizayn, İstanbul"
+                                    elif end_tip == "gps":
+                                        e_ad, e_adres = "📍 ŞOFÖR (GPS)", f"{loc['latitude']},{loc['longitude']}"
+                                    else:
+                                        e_ad, e_adres = "🔴 ÖZEL BİTİŞ", ozel_bitis
+                                        
                                     nodes.append({'Siparis_No': 'END', 'Paket_No': '-', 'Gizli_ID': '-', 'Alici_Ad': e_ad, 'Adres': e_adres, 'Telefon': '-'})
                                     end_node_index = len(nodes) - 1
 
                                 musteri_offset = len(nodes)
-                                for idx, row in df_excel.iterrows(): nodes.append(row.to_dict())
+                                
+                                for idx, row in df_excel.iterrows(): 
+                                    nodes.append(row.to_dict())
 
-                                if start_tip == "musteri": start_node_index = musteri_offset + start_idx_raw
-                                if ring_rotasi: end_node_index = start_node_index
-                                elif end_tip == "musteri": end_node_index = musteri_offset + end_idx_raw
+                                if start_tip == "musteri": 
+                                    start_node_index = musteri_offset + start_idx_raw
+                                    
+                                if ring_rotasi: 
+                                    end_node_index = start_node_index
+                                elif end_tip == "musteri": 
+                                    end_node_index = musteri_offset + end_idx_raw
 
                                 df_all = pd.DataFrame(nodes)
                                 enlemler, boylamlar, gecerli_indeksler = [], [], []
 
+                                # Adres Koordinatlarını Çözme
                                 for i, adres in enumerate(df_all['Adres']):
                                     lat, lon = 0.0, 0.0
                                     gizli_id = df_all['Gizli_ID'].iloc[i]
@@ -510,8 +558,10 @@ with tab_harita:
                                         else:
                                             try:
                                                 res = gmaps.geocode(f"{adres}, Türkiye")
-                                                if res: lat, lon = res[0]['geometry']['location']['lat'], res[0]['geometry']['location']['lng']
-                                            except: pass
+                                                if res: 
+                                                    lat, lon = res[0]['geometry']['location']['lat'], res[0]['geometry']['location']['lng']
+                                            except: 
+                                                pass
                                     else:
                                         row_data = df_excel[df_excel['Gizli_ID'] == gizli_id].iloc[0]
                                         if pd.notna(row_data['Onayli_Enlem']) and pd.notna(row_data['Onayli_Boylam']):
@@ -519,20 +569,15 @@ with tab_harita:
                                         else:
                                             try:
                                                 res = gmaps.geocode(f"{adres}, Türkiye")
-                                                if res: lat, lon = res[0]['geometry']['location']['lat'], res[0]['geometry']['location']['lng']
-                                            except: pass
+                                                if res: 
+                                                    lat, lon = res[0]['geometry']['location']['lat'], res[0]['geometry']['location']['lng']
+                                            except: 
+                                                pass
                                                 
                                     if lat != 0.0 and lon != 0.0:
                                         enlemler.append(lat)
                                         boylamlar.append(lon)
                                         gecerli_indeksler.append(i)
-
-                                if start_node_index not in gecerli_indeksler:
-                                    st.error("❌ Başlangıç adresi haritada bulunamadı.")
-                                    st.stop()
-                                if end_node_index not in gecerli_indeksler:
-                                    st.error("❌ Bitiş adresi haritada bulunamadı.")
-                                    st.stop()
 
                                 yeni_start_idx = gecerli_indeksler.index(start_node_index)
                                 yeni_end_idx = gecerli_indeksler.index(end_node_index)
@@ -541,25 +586,30 @@ with tab_harita:
                                 df_filtered['Enlem'] = enlemler
                                 df_filtered['Boylam'] = boylamlar
 
+                                # Mesafe Matrisi Hesaplama Formülü
                                 def mesafe_hesapla(lat1, lon1, lat2, lon2):
                                     R = 6371 
                                     phi1, phi2 = math.radians(lat1), math.radians(lat2)
-                                    dphi = math.radians(lat2 - lat1)
-                                    dlambda = math.radians(lon2 - lon1)
-                                    a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
+                                    a = math.sin(math.radians(lat2 - lat1)/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(math.radians(lon2 - lon1)/2)**2
                                     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a)) * 1000 
 
                                 mesafe_matrisi = []
                                 for i in range(len(df_filtered)):
                                     satir = []
                                     for j in range(len(df_filtered)):
-                                        if i == j: satir.append(0)
-                                        else: satir.append(int(mesafe_hesapla(df_filtered['Enlem'][i], df_filtered['Boylam'][i], df_filtered['Enlem'][j], df_filtered['Boylam'][j])))
+                                        if i == j:
+                                            satir.append(0)
+                                        else:
+                                            hesaplanan_deger = int(mesafe_hesapla(df_filtered['Enlem'][i], df_filtered['Boylam'][i], df_filtered['Enlem'][j], df_filtered['Boylam'][j]))
+                                            satir.append(hesaplanan_deger)
                                     mesafe_matrisi.append(satir)
-
+                                
                                 manager = pywrapcp.RoutingIndexManager(len(mesafe_matrisi), 1, [yeni_start_idx], [yeni_end_idx])
                                 routing = pywrapcp.RoutingModel(manager)
-                                def distance_callback(from_index, to_index): return mesafe_matrisi[manager.IndexToNode(from_index)][manager.IndexToNode(to_index)]
+                                
+                                def distance_callback(from_index, to_index): 
+                                    return mesafe_matrisi[manager.IndexToNode(from_index)][manager.IndexToNode(to_index)]
+                                    
                                 transit_callback_index = routing.RegisterTransitCallback(distance_callback)
                                 routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
 
@@ -581,12 +631,13 @@ with tab_harita:
                                     sirali_df = df_filtered.iloc[rota_sirasi].copy().reset_index(drop=True)
                                     st.session_state.sirali_df = sirali_df 
                                     
+                                    # Teslimat Durumlarını Sıfırlama
                                     st.session_state.delivery_status = {}
                                     for g_id in sirali_df['Gizli_ID'].unique():
                                         st.session_state.delivery_status[g_id] = "pending"
                                         
                                     buffer = io.BytesIO()
-                                    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+                                    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer: 
                                         sirali_df.to_excel(writer, index=False)
                                     st.session_state.buffer = buffer
                                     st.session_state.dosya_adi = f"Ersan_Rota_{datetime.datetime.now().strftime('%H%M')}.xlsx"
@@ -596,18 +647,18 @@ with tab_harita:
                                 else:
                                     st.error("Bu adresler arasında geçerli bir rota bulunamadı!")
 
-                            except Exception as e:
+                            except Exception as e: 
                                 st.error(f"Bir hata oluştu: {e}")
-
-            except Exception as e:
+            except Exception as e: 
                 st.error(f"Excel okunurken hata oluştu: {e}")
 
     # --- ÜST KISIM: HARİTA BÖLÜMÜ VE SEVKİYAT KONTROLÜ ---
     if st.session_state.harita_hazir:
         with harita_kutusu:
-            # 🏁 SEVKİYAT BİTTİ Mİ KONTROLÜ 🏁
+            # 🏁 SEVKİYAT BİTTİ Mİ KONTROLÜ
             pending_count = 0
             total_customers = 0
+            
             for idx, row in st.session_state.sirali_df.iterrows():
                 if row['Gizli_ID'] != '-':
                     total_customers += 1
@@ -617,45 +668,49 @@ with tab_harita:
             if total_customers > 0 and pending_count == 0:
                 st.success("🎉 ŞAHANE İŞ! SEVKİYAT BİTMİŞTİR! Bütün teslimatlar tamamlandı. Eline sağlık şoför bey! 🚚💨")
                 st.balloons()
-            else:
+            else: 
                 st.info(f"🚚 Kalan Teslimat: {pending_count} / {total_customers} | Aşağıdan güzergahı inceleyebilirsiniz.")
             
-            # 🗺️ ANLIK GÜNCELLENEN HARİTA
             sirali_df = st.session_state.sirali_df
-            baslangic_lat = sirali_df['Enlem'].iloc[0]
-            baslangic_lon = sirali_df['Boylam'].iloc[0]
-            m = folium.Map(location=[baslangic_lat, baslangic_lon], zoom_start=10)
+            m = folium.Map(location=[sirali_df['Enlem'].iloc[0], sirali_df['Boylam'].iloc[0]], zoom_start=10)
             
             koordinat_listesi = []
             for idx, row in sirali_df.iterrows():
-                lat, lon = row['Enlem'], row['Boylam']
-                koordinat_listesi.append((lat, lon))
-                
+                lat = row['Enlem']
+                lon = row['Boylam']
                 g_id = row['Gizli_ID']
-                status = st.session_state.delivery_status.get(g_id, "pending")
-                popup_text = f"<b>Durak {idx+1}</b><br>{row['Alici_Ad']}<br>Tel: {row['Telefon']}"
                 
-                if g_id == '-':
-                    if idx == 0: renk_hex = '#4caf50' 
-                    else: renk_hex = '#ff5252' 
-                else:
-                    if status == "success": renk_hex = '#4caf50' 
-                    elif status == "failed": renk_hex = '#ff5252' 
-                    else: renk_hex = '#2196f3' 
+                koordinat_listesi.append((lat, lon))
+                status = st.session_state.delivery_status.get(g_id, "pending")
+                
+                if g_id == '-': 
+                    if idx == 0:
+                        renk_hex = '#4caf50' 
+                    else:
+                        renk_hex = '#ff5252' 
+                else: 
+                    if status == "success":
+                        renk_hex = '#4caf50' 
+                    elif status == "failed":
+                        renk_hex = '#ff5252' 
+                    else:
+                        renk_hex = '#2196f3'
                     
-                marker_html = f'''
-                <div style="background-color: {renk_hex}; color: white; border-radius: 50%; width: 26px; height: 26px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 13px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.5);">
-                    {idx+1}
-                </div>
-                '''
-                folium.Marker([lat, lon], popup=popup_text, tooltip=f"Durak {idx+1}", icon=folium.DivIcon(html=marker_html, icon_anchor=(13, 13))).add_to(m)
+                marker_html = f'<div style="background-color: {renk_hex}; color: white; border-radius: 50%; width: 26px; height: 26px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 13px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.5);">{idx+1}</div>'
+                
+                folium.Marker(
+                    [lat, lon], 
+                    popup=f"<b>Durak {idx+1}</b><br>{row['Alici_Ad']}<br>Tel: {row['Telefon']}", 
+                    tooltip=f"Durak {idx+1}", 
+                    icon=folium.DivIcon(html=marker_html, icon_anchor=(13, 13))
+                ).add_to(m)
                 
             folium.PolyLine(koordinat_listesi, color="#ff4b4b", weight=3, opacity=0.8).add_to(m)
             folium_static(m, width=1200, height=500)
             
             st.download_button("📥 Optimize Edilmiş Rotayı Excel Olarak İndir", data=st.session_state.buffer, file_name=st.session_state.dosya_adi, mime="application/vnd.ms-excel")
 
-    # --- ALT KISIM: ŞOFÖR MODU BÖLÜMÜ ---
+    # --- ALT KISIM: ŞOFÖR MODU (SÜRÜKLE BIRAK MANTIKLI MANUEL SIRALAMA) ---
     if st.session_state.harita_hazir:
         with liste_kutusu:
             st.markdown("### 📱 Teslimat Sırası (Şoför Modu)")
@@ -665,26 +720,38 @@ with tab_harita:
             
             for idx, row in st.session_state.sirali_df.iterrows():
                 g_id = row['Gizli_ID']
-                if g_id == '-':
+                if g_id == '-': 
                     pending_orders.append((idx, row, 'start_end'))
                 else:
                     status = st.session_state.delivery_status.get(g_id, "pending")
-                    if status == "pending": pending_orders.append((idx, row, 'pending'))
-                    else: completed_orders.append((idx, row, status))
+                    if status == "pending": 
+                        pending_orders.append((idx, row, 'pending'))
+                    else: 
+                        completed_orders.append((idx, row, status))
                         
-            # --------- 1. BEKLEYEN TESLİMATLAR ---------
             st.markdown("#### ⏳ Gidilecek Duraklar")
+            
             for idx, row, status in pending_orders:
                 durak_no = idx + 1
-                lat, lon, g_id = row['Enlem'], row['Boylam'], row['Gizli_ID']
+                lat = row['Enlem']
+                lon = row['Boylam']
+                g_id = row['Gizli_ID']
                 
                 tel_temiz = "".join(filter(str.isdigit, str(row['Telefon'])))
-                if tel_temiz.startswith("0"): tel_temiz = "9" + tel_temiz
-                if not tel_temiz.startswith("90") and len(tel_temiz) == 10: tel_temiz = "90" + tel_temiz
+                if tel_temiz.startswith("0"): 
+                    tel_temiz = "9" + tel_temiz
+                if not tel_temiz.startswith("90") and len(tel_temiz) == 10: 
+                    tel_temiz = "90" + tel_temiz
                 
-                if durak_no == 1: border_color, durak_etiketi = "#4caf50", "🟢 BAŞLANGIÇ"
-                elif durak_no == len(st.session_state.sirali_df): border_color, durak_etiketi = "#ff5252", "🔴 BİTİŞ"
-                else: border_color, durak_etiketi = "#2196f3", "📦 TESLİMAT"
+                if durak_no == 1: 
+                    border_color = "#4caf50"
+                    durak_etiketi = "🟢 BAŞLANGIÇ"
+                elif durak_no == len(st.session_state.sirali_df): 
+                    border_color = "#ff5252"
+                    durak_etiketi = "🔴 BİTİŞ"
+                else: 
+                    border_color = "#2196f3"
+                    durak_etiketi = "📦 TESLİMAT"
                 
                 kart_html = f"""
 <div style="background: linear-gradient(145deg, #22232a, #2a2b33); padding: 20px; border-radius: 16px; margin-bottom: 10px; border-left: 6px solid {border_color}; box-shadow: 0 8px 20px rgba(0,0,0,0.15);">
@@ -708,16 +775,49 @@ with tab_harita:
 """
                 st.markdown(kart_html, unsafe_allow_html=True)
                 
+                # 🌟 ONAY VE MANUEL SIRALAMA BUTONLARI (Hepsi Bir Arada)
                 if status == 'pending':
-                    col_ok, col_fail = st.columns(2)
-                    with col_ok:
+                    c_ok, c_fail, c_sira, c_tasi = st.columns([5, 5, 4, 3])
+                    
+                    with c_ok:
                         if st.button("✅ Teslim Edildi", key=f"ok_{g_id}", use_container_width=True):
                             st.session_state.delivery_status[g_id] = "success"
                             st.rerun()
-                    with col_fail:
+                            
+                    with c_fail:
                         if st.button("❌ İptal / Edilemedi", key=f"fail_{g_id}", use_container_width=True):
                             st.session_state.delivery_status[g_id] = "failed"
                             st.rerun()
+                    
+                    with c_sira:
+                        # Seçilen müşteriyi istenilen sıraya koyabilmek için Numara Kutusu
+                        hedef_sira = st.number_input("Sıra No", min_value=1, max_value=len(st.session_state.sirali_df), value=durak_no, key=f"sira_{g_id}", label_visibility="collapsed")
+                    
+                    with c_tasi:
+                        # 🔄 Rotayı Düzenleme Mantığı (Sürükle-Bırak hissi)
+                        if st.button("🔄 Taşı", key=f"move_{g_id}", use_container_width=True):
+                            eski_idx = idx
+                            yeni_idx = hedef_sira - 1
+                            
+                            # Eğer yer değişikliği gerçekten varsa işlem yap
+                            if eski_idx != yeni_idx:
+                                # DataFrame'den o satırı kesip yeni yere yapıştırıyoruz
+                                row_to_move = st.session_state.sirali_df.iloc[eski_idx:eski_idx+1]
+                                df_temp = st.session_state.sirali_df.drop(st.session_state.sirali_df.index[eski_idx])
+                                
+                                df_top = df_temp.iloc[:yeni_idx]
+                                df_bottom = df_temp.iloc[yeni_idx:]
+                                
+                                st.session_state.sirali_df = pd.concat([df_top, row_to_move, df_bottom]).reset_index(drop=True)
+                                
+                                # EXCEL'İ DE YENİ ROTAYA GÖRE GÜNCELLE
+                                buffer = io.BytesIO()
+                                with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+                                    st.session_state.sirali_df.to_excel(writer, index=False)
+                                    
+                                st.session_state.buffer = buffer
+                                st.rerun()
+                    
                     st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
 
             # --------- 2. TAMAMLANANLAR LİSTESİ ---------
@@ -726,10 +826,17 @@ with tab_harita:
                 st.markdown("#### 🏁 Tamamlanan İşlemler")
                 
                 for idx, row, status in completed_orders:
-                    durak_no, g_id = idx + 1, row['Gizli_ID']
+                    durak_no = idx + 1
+                    g_id = row['Gizli_ID']
                     
-                    if status == "success": bg_grad, border_color, durak_etiketi = "linear-gradient(145deg, #1b2e1f, #223827)", "#4caf50", "✅ TESLİM EDİLDİ"
-                    else: bg_grad, border_color, durak_etiketi = "linear-gradient(145deg, #2e1b1b, #382222)", "#ff5252", "❌ EDİLEMEDİ"
+                    if status == "success": 
+                        bg_grad = "linear-gradient(145deg, #1b2e1f, #223827)"
+                        border_color = "#4caf50"
+                        durak_etiketi = "✅ TESLİM EDİLDİ"
+                    else: 
+                        bg_grad = "linear-gradient(145deg, #2e1b1b, #382222)"
+                        border_color = "#ff5252"
+                        durak_etiketi = "❌ EDİLEMEDİ"
                         
                     kart_html_comp = f"""
 <div style="background: {bg_grad}; padding: 15px; border-radius: 12px; margin-bottom: 10px; border-left: 6px solid {border_color}; opacity: 0.8;">
@@ -744,7 +851,9 @@ with tab_harita:
 </div>
 """
                     st.markdown(kart_html_comp, unsafe_allow_html=True)
+                    
                     if st.button("↩️ İşlemi Geri Al", key=f"undo_{g_id}", use_container_width=True):
                         st.session_state.delivery_status[g_id] = "pending"
                         st.rerun()
+                        
                     st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
