@@ -14,7 +14,7 @@ from streamlit_geolocation import streamlit_geolocation
 # ==========================================
 # 🔑 GOOGLE MAPS API ANAHTARINI BURAYA YAZ 🔑
 # ==========================================
-GOOGLE_MAPS_API_KEY = "BURAYA_KENDI_API_ANAHTARINI_YAZ"
+GOOGLE_MAPS_API_KEY = "AIzaSyAbn2TCWJDpKimkoKKb0cNcGWQj9gUF-Mg"
 
 # 1. Panel Sayfa Ayarları
 st.set_page_config(page_title="Ersan Dizayn Rota Paneli", layout="wide", initial_sidebar_state="collapsed")
