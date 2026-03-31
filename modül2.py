@@ -159,17 +159,13 @@ def netgsm_sms_gonder(tel, musteri, paket, urun, kod):
         else: return False, f"NetGSM Hata Kodu: {r.text}"
     except Exception as e: return False, f"Sistem Hatası: {str(e)}"
 
-# 🛒 TRENDYOL API TESLİM EDİLDİ FONKSİYONU (2 AŞAMALI GERÇEK MANTIK)
+# 🛒 TRENDYOL API TESLİM EDİLDİ FONKSİYONU
 def trendyol_teslim_edildi_yap(satici_id, api_key, api_secret, paket_no, siparis_no):
-    if siparis_no == "-" or siparis_no == "":
-        return False, "Sipariş numarası yok! Lütfen lokal teslimata tıklayın."
-    
     auth_str = f"{api_key}:{api_secret}"
     b64_auth_str = base64.b64encode(auth_str.encode('ascii')).decode('ascii')
     headers = {"Authorization": f"Basic {b64_auth_str}", "Content-Type": "application/json"}
     
     try:
-        # AŞAMA 1: Sipariş No ile gerçek Paket ID'yi Trendyol'dan Çekme
         sorgu_url = f"https://apigw.trendyol.com/integration/order/sellers/{satici_id}/orders?orderNumber={siparis_no}"
         req_sorgu = requests.get(sorgu_url, headers=headers, timeout=15)
         
@@ -177,23 +173,50 @@ def trendyol_teslim_edildi_yap(satici_id, api_key, api_secret, paket_no, siparis
         if req_sorgu.status_code == 200:
             data = req_sorgu.json()
             content = data.get("content", [])
-            if content:
-                gercek_paket_id = content[0].get("id") or content[0].get("shipmentPackageId")
+            if content: gercek_paket_id = content[0].get("id") or content[0].get("shipmentPackageId")
         
-        # Eğer Trendyol'dan ID gelirse onu kullan, gelmezse exceldekini dene
         sadece_id = str(gercek_paket_id) if gercek_paket_id else str(paket_no).strip()
         
-        # AŞAMA 2: Bulunan gerçek Paket ID ile Manual-Deliver (Teslim Edildi) Vuruşu
         url = f"https://apigw.trendyol.com/integration/order/sellers/{satici_id}/shipment-packages/{sadece_id}/manual-deliver"
         r = requests.put(url, headers=headers, json={}, timeout=15)
         
-        if r.status_code in [200, 201, 204]: 
-            return True, "Trendyol'da başarıyla Teslim Edildi!"
-        else: 
-            return False, f"Trendyol Hata: {r.status_code} - {r.text}"
+        if r.status_code in [200, 201, 204]: return True, "Trendyol'da başarıyla Teslim Edildi!"
+        else: return False, f"Trendyol Hata: {r.status_code} - {r.text}"
             
-    except Exception as e: 
-        return False, f"Bağlantı Hatası: {str(e)}"
+    except Exception as e: return False, f"Bağlantı Hatası: {str(e)}"
+
+# 🎨 EXCEL RENKLENDİRME FONKSİYONU
+def get_colored_excel(df, status_dict):
+    df_export = df.copy()
+    durum_listesi = []
+    
+    for g_id in df_export['Gizli_ID']:
+        st_val = status_dict.get(g_id, "pending")
+        if st_val == "success_trendyol": durum_listesi.append("Trendyol Teslim Edildi")
+        elif st_val == "success_local": durum_listesi.append("Lokal (HB/N11) Teslim Edildi")
+        elif st_val == "failed": durum_listesi.append("Teslim Edilemedi")
+        else: durum_listesi.append("Bekliyor")
+        
+    df_export['Teslimat_Durumu'] = durum_listesi
+
+    def apply_colors(row):
+        g_id = row['Gizli_ID']
+        st_val = status_dict.get(g_id, "pending")
+        if st_val == "success_trendyol": return ['background-color: #c6efce; color: #006100'] * len(row) # Yeşil
+        elif st_val == "success_local": return ['background-color: #bdd7ee; color: #002060'] * len(row) # Mavi
+        elif st_val == "failed": return ['background-color: #ffc7ce; color: #9c0006'] * len(row) # Kırmızı
+        else: return [''] * len(row)
+
+    styled_df = df_export.style.apply(apply_colors, axis=1)
+    
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        styled_df.to_excel(writer, index=False, sheet_name='Rota Durumu')
+        worksheet = writer.sheets['Rota Durumu']
+        worksheet.set_column('A:Z', 15)
+    
+    return output.getvalue()
+
 
 st.title("🚚 Ersan Dizayn Rota Kontrol Merkezi")
 
@@ -374,7 +397,6 @@ with tab_harita:
     
     with manuel_ekleme_kutusu:
         with st.expander("➕ MANUEL SİPARİŞ / YENİ ADRES EKLE (Tıkla Aç)", expanded=False):
-            st.markdown("WhatsApp'tan vb. gelen anlık siparişleri Excel'e dokunmadan buradan ekleyebilirsiniz.")
             col_search, col_btn = st.columns([4, 1])
             with col_search: man_arama = st.text_input("📍 Aranacak Adresi Yazın:")
             with col_btn:
@@ -605,12 +627,7 @@ with tab_harita:
                                     for g_id in sirali_df['Gizli_ID'].unique():
                                         st.session_state.delivery_status[g_id] = "pending"
                                         
-                                    buffer = io.BytesIO()
-                                    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer: 
-                                        sirali_df.to_excel(writer, index=False)
-                                    st.session_state.buffer = buffer
                                     st.session_state.dosya_adi = f"Ersan_Rota_{datetime.datetime.now().strftime('%H%M')}.xlsx"
-                                    
                                     st.session_state.harita_hazir = True
                                     st.rerun() 
                                 else:
@@ -648,8 +665,14 @@ with tab_harita:
                 koordinat_listesi.append((lat, lon))
                 status = st.session_state.delivery_status.get(g_id, "pending")
                 
-                if g_id == '-': renk_hex = '#4caf50' if idx == 0 else '#ff5252' 
-                else: renk_hex = '#4caf50' if status == "success" else ('#ff5252' if status == "failed" else '#2196f3')
+                # 🌟 HARİTA PİN RENKLERİ GÜNCELLENDİ
+                if g_id == '-': 
+                    renk_hex = '#4caf50' if idx == 0 else '#ff5252' 
+                else: 
+                    if status == "success_trendyol": renk_hex = '#4caf50' # Trendyol Yeşil
+                    elif status == "success_local": renk_hex = '#2196f3' # HB/N11 Mavi
+                    elif status == "failed": renk_hex = '#ff5252' # Hata Kırmızı
+                    else: renk_hex = '#ff9800' # Bekleyenler Turuncu
                     
                 marker_html = f'<div style="background-color: {renk_hex}; color: white; border-radius: 50%; width: 26px; height: 26px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 13px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.5);">{idx+1}</div>'
                 folium.Marker([lat, lon], popup=f"<b>Durak {idx+1}</b><br>{row['Alici_Ad']}<br>Tel: {row['Telefon']}", tooltip=f"Durak {idx+1}", icon=folium.DivIcon(html=marker_html, icon_anchor=(13, 13))).add_to(m)
@@ -663,7 +686,9 @@ with tab_harita:
             with col_btn:
                 st.markdown("<br>", unsafe_allow_html=True)
                 if girilen_sifre == ADMIN_SIFRE:
-                    st.download_button("📥 Kilit Açıldı: Optimize Edilmiş Rotayı İndir", data=st.session_state.buffer, file_name=st.session_state.dosya_adi, mime="application/vnd.ms-excel", type="primary", use_container_width=True)
+                    # 🌟 DİNAMİK RENKLİ EXCEL İNDİRME
+                    excel_data = get_colored_excel(sirali_df, st.session_state.delivery_status)
+                    st.download_button("📥 Kilit Açıldı: Renklendirilmiş Raporu İndir", data=excel_data, file_name=st.session_state.dosya_adi, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", use_container_width=True)
                 elif girilen_sifre != "": st.error("❌ Hatalı şifre!")
 
     # --- ALT KISIM: ŞOFÖR MODU (OTP + TRENDYOL ENTEGRASYONU) ---
@@ -697,7 +722,7 @@ with tab_harita:
                 
                 if durak_no == 1: border_color, durak_etiketi = "#4caf50", "🟢 BAŞLANGIÇ"
                 elif durak_no == len(st.session_state.sirali_df): border_color, durak_etiketi = "#ff5252", "🔴 BİTİŞ"
-                else: border_color, durak_etiketi = "#2196f3", "📦 TESLİMAT"
+                else: border_color, durak_etiketi = "#ff9800", "📦 TESLİMAT BEKLİYOR" # Turuncu çerçeve
                 
                 urun_html = ""
                 if g_id != '-':
@@ -730,52 +755,58 @@ with tab_harita:
                 
                 # 🌟 AKSİYON BUTONLARI (Onay, İptal, SMS ve Sıralama)
                 if status == 'pending':
-                    # 1. ve Son Durak Hariç İşlemler
-                    if 1 < durak_no < len(st.session_state.sirali_df):
-                        
-                        # 🔒 GÜVENLİ TESLİMAT KODU (OTP) EKRANI AKTİF
-                        if st.session_state.get(f"show_otp_{g_id}", False):
-                            st.info("🔒 **Güvenli Teslimat:** Müşteriye SMS ile giden 4 haneli kodu girin.")
-                            c_kod, c_onay, c_vazgec = st.columns([4, 4, 3])
-                            with c_kod:
-                                girilen_kod = st.text_input("Kod:", key=f"inp_{g_id}", placeholder="Örn: 1234", label_visibility="collapsed")
-                            with c_onay:
-                                if st.button("✔️ Doğrula", key=f"dogrula_{g_id}", type="primary", use_container_width=True):
-                                    if girilen_kod == str(gizli_kod):
-                                        with st.spinner("Trendyol'a bildiriliyor..."):
-                                            # AŞAMA 1: Trendyol 2-Adımlı Sorgu
-                                            if g_id != '-':
-                                                basari, msj = trendyol_teslim_edildi_yap(TRENDYOL_SATICI_ID, TRENDYOL_API_KEY, TRENDYOL_API_SECRET, row['Paket_No'], row['Siparis_No'])
-                                            else:
-                                                basari, msj = True, "Lokal Teslimat"
-                                                
-                                            if basari:
-                                                st.session_state.delivery_status[g_id] = "success"
-                                                st.session_state[f"show_otp_{g_id}"] = False
-                                                st.toast("✅ Paket Başarıyla Teslim Edildi ve Trendyol'a Bildirildi!")
-                                                st.rerun()
-                                            else:
-                                                st.error(f"❌ TRENDYOL REDDETTİ:\n\n{msj}")
-                                                st.session_state[f"trendyol_hata_{g_id}"] = True # Zorla geçme butonunu aç
-                                    else:
-                                        st.error("❌ Hatalı Kod! Lütfen tekrar deneyin.")
-                            with c_vazgec:
-                                if st.button("⬅️ Vazgeç", key=f"vzg_{g_id}", use_container_width=True):
-                                    st.session_state[f"show_otp_{g_id}"] = False
-                                    st.session_state[f"trendyol_hata_{g_id}"] = False
-                                    st.rerun()
-                                    
-                            # ⚠️ TRENDYOL HATA VERİRSE ÇIKACAK BYPASS (ZORLA GEÇ) BUTONU
-                            if st.session_state.get(f"trendyol_hata_{g_id}", False):
-                                st.warning("Trendyol API bu siparişi teslim etmeyi reddetti. Sistemi devam ettirmek için lokal olarak teslim edebilirsiniz.")
-                                if st.button("⚠️ Trendyol'u Yoksay ve Sadece Uygulamada Teslim Et", key=f"force_{g_id}", use_container_width=True):
-                                    st.session_state.delivery_status[g_id] = "success"
-                                    st.session_state[f"show_otp_{g_id}"] = False
-                                    st.session_state[f"trendyol_hata_{g_id}"] = False
-                                    st.rerun()
+                    # ========================================================
+                    # 🔒 GÜVENLİ TESLİMAT KODU (OTP) EKRANI (HER DURAK İÇİN)
+                    # ========================================================
+                    if st.session_state.get(f"show_otp_{g_id}", False):
+                        st.info("🔒 **Güvenli Teslimat:** Müşteriye SMS ile giden 4 haneli kodu girin.")
+                        c_kod, c_onay, c_vazgec = st.columns([4, 4, 3])
+                        with c_kod:
+                            girilen_kod = st.text_input("Kod:", key=f"inp_{g_id}", placeholder="Örn: 1234", label_visibility="collapsed")
+                        with c_onay:
+                            if st.button("✔️ Doğrula", key=f"dogrula_{g_id}", type="primary", use_container_width=True):
+                                if girilen_kod == str(gizli_kod):
+                                    with st.spinner("İşleniyor..."):
+                                        sip_no = str(row['Siparis_No']).strip()
+                                        
+                                        # 🌟 HB (4) VEYA N11 (2) ZEKASI BURADA ÇALIŞIYOR
+                                        if sip_no.startswith('2') or sip_no.startswith('4') or g_id == '-':
+                                            basari, msj = True, "Lokal Teslimat"
+                                            durum_sonucu = "success_local"
+                                        else:
+                                            basari, msj = trendyol_teslim_edildi_yap(TRENDYOL_SATICI_ID, TRENDYOL_API_KEY, TRENDYOL_API_SECRET, row['Paket_No'], sip_no)
+                                            durum_sonucu = "success_trendyol"
+                                            
+                                        if basari:
+                                            st.session_state.delivery_status[g_id] = durum_sonucu
+                                            st.session_state[f"show_otp_{g_id}"] = False
+                                            st.toast("✅ Paket Başarıyla Teslim Edildi!")
+                                            st.rerun()
+                                        else:
+                                            st.error(f"❌ TRENDYOL REDDETTİ:\n\n{msj}")
+                                            st.session_state[f"trendyol_hata_{g_id}"] = True
+                                else:
+                                    st.error("❌ Hatalı Kod! Lütfen tekrar deneyin.")
+                        with c_vazgec:
+                            if st.button("⬅️ Vazgeç", key=f"vzg_{g_id}", use_container_width=True):
+                                st.session_state[f"show_otp_{g_id}"] = False
+                                st.session_state[f"trendyol_hata_{g_id}"] = False
+                                st.rerun()
+                                
+                        # ⚠️ TRENDYOL HATA VERİRSE ÇIKACAK BYPASS (ZORLA GEÇ) BUTONU
+                        if st.session_state.get(f"trendyol_hata_{g_id}", False):
+                            st.warning("Trendyol API bu siparişi teslim etmeyi reddetti. Sistemi devam ettirmek için lokal olarak teslim edebilirsiniz.")
+                            if st.button("⚠️ Trendyol'u Yoksay ve Sadece Uygulamada Teslim Et", key=f"force_{g_id}", use_container_width=True):
+                                st.session_state.delivery_status[g_id] = "success_local" # Lokal (Mavi) teslimata atar
+                                st.session_state[f"show_otp_{g_id}"] = False
+                                st.session_state[f"trendyol_hata_{g_id}"] = False
+                                st.rerun()
 
-                        # 📦 STANDART BUTONLAR EKRANI (OTP KUTUSU AÇIK DEĞİLSE)
-                        else:
+                    # ========================================================
+                    # 📦 STANDART BUTONLAR EKRANI (OTP KUTUSU AÇIK DEĞİLSE)
+                    # ========================================================
+                    else:
+                        if 1 < durak_no < len(st.session_state.sirali_df):
                             c_ok, c_fail, c_sms = st.columns([3, 3, 3])
                             with c_ok:
                                 if st.button("✅ Teslim Edildi", key=f"ok_{g_id}", use_container_width=True):
@@ -783,7 +814,7 @@ with tab_harita:
                                     st.rerun()
                             with c_fail:
                                 if st.button("❌ İptal / Edilemedi", key=f"fail_{g_id}", use_container_width=True):
-                                    st.session_state.delivery_status[g_id] = "failed"
+                                    st.session_state.delivery_status[g_id] = "failed" # Kırmızı
                                     st.rerun()
                             with c_sms:
                                 if st.button("📨 SMS Gönder", key=f"sms_{g_id}", use_container_width=True):
@@ -806,53 +837,9 @@ with tab_harita:
                                         df_top = df_temp.iloc[:yeni_idx]
                                         df_bottom = df_temp.iloc[yeni_idx:]
                                         st.session_state.sirali_df = pd.concat([df_top, row_to_move, df_bottom]).reset_index(drop=True)
-                                        buffer = io.BytesIO()
-                                        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-                                            st.session_state.sirali_df.to_excel(writer, index=False)
-                                        st.session_state.buffer = buffer
                                         st.rerun() 
-                    else:
-                        # 1. veya Son duraksa (Taşıma yok, Teslim Edildi'de KOD sorar)
-                        if st.session_state.get(f"show_otp_{g_id}", False):
-                            st.info("🔒 **Güvenli Teslimat:** Müşteriye SMS ile giden 4 haneli kodu girin.")
-                            c_kod, c_onay, c_vazgec = st.columns([4, 4, 3])
-                            with c_kod:
-                                girilen_kod = st.text_input("Kod:", key=f"inp_{g_id}", placeholder="Örn: 1234", label_visibility="collapsed")
-                            with c_onay:
-                                if st.button("✔️ Doğrula", key=f"dogrula_{g_id}", type="primary", use_container_width=True):
-                                    if girilen_kod == str(gizli_kod):
-                                        with st.spinner("Trendyol'a bildiriliyor..."):
-                                            # AŞAMA 1: Trendyol 2-Adımlı Sorgu (Başlangıç/Bitiş bile olsa)
-                                            if g_id != '-':
-                                                basari, msj = trendyol_teslim_edildi_yap(TRENDYOL_SATICI_ID, TRENDYOL_API_KEY, TRENDYOL_API_SECRET, row['Paket_No'], row['Siparis_No'])
-                                            else:
-                                                basari, msj = True, "Lokal Teslimat"
-                                                
-                                            if basari:
-                                                st.session_state.delivery_status[g_id] = "success"
-                                                st.session_state[f"show_otp_{g_id}"] = False
-                                                st.toast("✅ Paket Başarıyla Teslim Edildi ve Trendyol'a Bildirildi!")
-                                                st.rerun()
-                                            else:
-                                                st.error(f"❌ TRENDYOL REDDETTİ:\n\n{msj}")
-                                                st.session_state[f"trendyol_hata_{g_id}"] = True # Zorla geçme butonunu aç
-                                    else:
-                                        st.error("❌ Hatalı Kod! Lütfen tekrar deneyin.")
-                            with c_vazgec:
-                                if st.button("⬅️ Vazgeç", key=f"vzg_{g_id}", use_container_width=True):
-                                    st.session_state[f"show_otp_{g_id}"] = False
-                                    st.session_state[f"trendyol_hata_{g_id}"] = False
-                                    st.rerun()
-                                    
-                            # ⚠️ TRENDYOL HATA VERİRSE ÇIKACAK BYPASS (ZORLA GEÇ) BUTONU
-                            if st.session_state.get(f"trendyol_hata_{g_id}", False):
-                                st.warning("Trendyol API bu siparişi teslim etmeyi reddetti. Sistemi devam ettirmek için lokal olarak teslim edebilirsiniz.")
-                                if st.button("⚠️ Trendyol'u Yoksay ve Sadece Uygulamada Teslim Et", key=f"force_{g_id}", use_container_width=True):
-                                    st.session_state.delivery_status[g_id] = "success"
-                                    st.session_state[f"show_otp_{g_id}"] = False
-                                    st.session_state[f"trendyol_hata_{g_id}"] = False
-                                    st.rerun()
                         else:
+                            # 1. veya Son duraksa (Sadece Teslimat/İptal/SMS, Taşıma yok)
                             c_ok, c_fail, c_sms = st.columns([3, 3, 3])
                             with c_ok:
                                 if st.button("✅ Teslim Edildi", key=f"ok_{g_id}", use_container_width=True):
@@ -880,16 +867,23 @@ with tab_harita:
                     durak_no = idx + 1
                     g_id = row['Gizli_ID']
                     
-                    if status == "success": 
+                    # 🌟 ARAYÜZ KART RENKLENDİRMELERİ
+                    if status == "success_trendyol": 
                         bg_grad = "linear-gradient(145deg, #1b2e1f, #223827)"
-                        border_color = "#4caf50"
-                        durak_etiketi = "✅ TESLİM EDİLDİ"
-                    else: 
+                        border_color = "#4caf50" # Yeşil
+                        durak_etiketi = "✅ TRENDYOL ONAYLI"
+                    elif status == "success_local": 
+                        bg_grad = "linear-gradient(145deg, #18283b, #1f354d)"
+                        border_color = "#2196f3" # Mavi
+                        durak_etiketi = "☑️ LOKAL TESLİMAT"
+                    elif status == "failed":
                         bg_grad = "linear-gradient(145deg, #2e1b1b, #382222)"
-                        border_color = "#ff5252"
+                        border_color = "#ff5252" # Kırmızı
                         durak_etiketi = "❌ EDİLEMEDİ"
+                    else:
+                        continue # Hata payı
                         
-                    kart_html_comp = f"""<div style="background: {bg_grad}; padding: 15px; border-radius: 12px; margin-bottom: 10px; border-left: 6px solid {border_color}; opacity: 0.8;">
+                    kart_html_comp = f"""<div style="background: {bg_grad}; padding: 15px; border-radius: 12px; margin-bottom: 10px; border-left: 6px solid {border_color}; opacity: 0.9;">
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
 <div style="display: flex; align-items: center; gap: 10px;">
 <span style="background-color: {border_color}; color: white; padding: 4px 10px; border-radius: 8px; font-weight: 800; font-size: 14px;">#{durak_no}</span>
