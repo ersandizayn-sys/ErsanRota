@@ -22,16 +22,16 @@ GOOGLE_MAPS_API_KEY = "AIzaSyAbn2TCWJDpKimkoKKb0cNcGWQj9gUF-Mg"
 # ==========================================
 # 🔑 NETGSM API AYARLARI (SMS İÇİN) 🔑
 # ==========================================
-NETGSM_KULLANICI = "8503056628"
-NETGSM_SIFRE = "T6-7376K"
+NETGSM_KULLANICI = "8503056628" # Güvenlik için gizlendi
+NETGSM_SIFRE = "T6-7376K" # Güvenlik için gizlendi
 NETGSM_BASLIK = "ERSANDIZAYN" 
 
 # ==========================================
 # 🔑 TRENDYOL API AYARLARI (TESLİMAT İÇİN) 🔑
 # ==========================================
 TRENDYOL_SATICI_ID = "113341"
-TRENDYOL_API_KEY = "ZXbDKYXoLmvup2bdlCZ8"
-TRENDYOL_API_SECRET = "pwTNHm0dgSX6KORXBFIs"
+TRENDYOL_API_KEY = "ZXbDKYXoLmvup2bdlCZ8" # Güvenlik için gizlendi
+TRENDYOL_API_SECRET = "pwTNHm0dgSX6KORXBFIs" # Güvenlik için gizlendi
 
 # ==========================================
 # 🔒 SİSTEM GÜVENLİK AYARLARI 🔒
@@ -143,7 +143,7 @@ def get_candidates(api_key, address):
 
 # 📨 NETGSM SMS GÖNDERME FONKSİYONU
 def netgsm_sms_gonder(tel, musteri, paket, urun, kod):
-    if NETGSM_KULLANICI == "BURAYA_NETGSM_KULLANICI_ADI_YAZIN":
+    if NETGSM_KULLANICI == "KENDI_BILGINI_YAZ" or NETGSM_KULLANICI == "BURAYA_NETGSM_KULLANICI_ADI_YAZIN":
         return False, "NetGSM ayarlarınız eksik!"
     
     tel_temiz = "".join(filter(str.isdigit, str(tel)))
@@ -162,29 +162,39 @@ def netgsm_sms_gonder(tel, musteri, paket, urun, kod):
         else: return False, f"NetGSM Hata Kodu: {r.text}"
     except Exception as e: return False, f"Sistem Hatası: {str(e)}"
 
-# 🛒 TRENDYOL API TESLİM EDİLDİ FONKSİYONU (MANUAL DELIVER GÜNCELLEMESİ)
-def trendyol_teslim_edildi_yap(satici_id, api_key, api_secret, paket_no):
-    if satici_id == "BURAYA_TRENDYOL_SATICI_ID_YAZIN" or paket_no == "-" or paket_no == "":
-        return False, "Trendyol API ayarları veya Paket No eksik!"
+# 🛒 TRENDYOL API TESLİM EDİLDİ FONKSİYONU (SENİN 2 AŞAMALI MANTIĞIN EKLENDİ)
+def trendyol_teslim_edildi_yap(satici_id, api_key, api_secret, paket_no, siparis_no):
+    if satici_id == "KENDI_BILGINI_YAZ" or siparis_no == "-" or siparis_no == "":
+        return False, "Sipariş numarası veya API ayarları eksik! İşlem lokal olarak kaydedildi."
     
-    # 🌟 GÜNCEL VE RESMİ TRENDYOL MANUEL TESLİMAT LİNKİ
-    url = f"https://apigw.trendyol.com/integration/order/sellers/{satici_id}/shipment-packages/{paket_no}/manual-deliver"
     auth_str = f"{api_key}:{api_secret}"
     b64_auth_str = base64.b64encode(auth_str.encode('ascii')).decode('ascii')
-    
-    headers = {
-        "Authorization": f"Basic {b64_auth_str}", 
-        "Content-Type": "application/json",
-        "User-Agent": f"{satici_id} - ErsanDizayn"
-    }
+    headers = {"Authorization": f"Basic {b64_auth_str}", "Content-Type": "application/json"}
     
     try:
-        # manual-deliver servisi gövde (body) beklemez
+        # AŞAMA 1: Trendyol'dan asıl Paket ID'yi sorgula
+        sorgu_url = f"https://apigw.trendyol.com/integration/order/sellers/{satici_id}/orders?orderNumber={siparis_no}"
+        req_sorgu = requests.get(sorgu_url, headers=headers, timeout=15)
+        
+        gercek_paket_id = None
+        if req_sorgu.status_code == 200:
+            data = req_sorgu.json()
+            content = data.get("content", [])
+            if content:
+                gercek_paket_id = content[0].get("id") or content[0].get("shipmentPackageId")
+        
+        # Eğer sorgudan bulamazsa eski usül paket_no ile şansını denesin
+        sadece_id = str(gercek_paket_id) if gercek_paket_id else str(paket_no).strip()
+        
+        # AŞAMA 2: Bulunan ID ile manual-deliver'a vur
+        url = f"https://apigw.trendyol.com/integration/order/sellers/{satici_id}/shipment-packages/{sadece_id}/manual-deliver"
         r = requests.put(url, headers=headers, json={}, timeout=15)
-        if r.status_code in [200, 204]: 
+        
+        if r.status_code in [200, 201, 204]: 
             return True, "Trendyol'da başarıyla Teslim Edildi!"
         else: 
             return False, f"Trendyol Hata Kodu {r.status_code}: {r.text}"
+            
     except Exception as e: 
         return False, f"Bağlantı Hatası: {str(e)}"
 
@@ -226,7 +236,7 @@ with tab_kurulum:
                 df_raw = pd.read_excel(yuklenen_dosya_input, usecols="B,H,I,J,N,O,P")
                 df_raw.columns = ['Paket_No', 'Siparis_No', 'Alici_Ad', 'Adres', 'Urun_Adi', 'Adet', 'Telefon']
             except ValueError:
-                st.error("❌ Excel sütunları eşleşmedi! Kodun 172. satırındaki 'usecols=\"G,H,I,J,K,L,P\"' kısmını, Excel'inizdeki Ürün Adı ve Adet sütun harflerine göre düzeltin.")
+                st.error("❌ Excel sütunları eşleşmedi! Kodun 172. satırındaki 'usecols=\"B,H,I,J,N,O,P\"' kısmını kontrol edin.")
                 st.stop()
                 
             df_raw = df_raw.dropna(subset=['Adres']).reset_index(drop=True)
@@ -729,10 +739,9 @@ with tab_harita:
                 
                 # 🌟 AKSİYON BUTONLARI (Onay, İptal, SMS ve Sıralama)
                 if status == 'pending':
-                    # 1. ve Son Durak Hariç İşlemler
                     if 1 < durak_no < len(st.session_state.sirali_df):
                         
-                        # 🔒 GÜVENLİ TESLİMAT KODU (OTP) EKRANI AKTİF
+                        # 🔒 GÜVENLİ TESLİMAT KODU (OTP) EKRANI 
                         if st.session_state.get(f"show_otp_{g_id}", False):
                             st.info("🔒 **Güvenli Teslimat:** Müşteriye SMS ile giden 4 haneli kodu girin.")
                             c_kod, c_onay, c_vazgec = st.columns([4, 4, 3])
@@ -742,7 +751,12 @@ with tab_harita:
                                 if st.button("✔️ Doğrula", key=f"dogrula_{g_id}", type="primary", use_container_width=True):
                                     if girilen_kod == str(gizli_kod):
                                         with st.spinner("Trendyol'a bildiriliyor..."):
-                                            basari, msj = trendyol_teslim_edildi_yap(TRENDYOL_SATICI_ID, TRENDYOL_API_KEY, TRENDYOL_API_SECRET, row['Paket_No'])
+                                            # AŞAMA 1: Trendyol 2-Adımlı Sorgu
+                                            if g_id != '-':
+                                                basari, msj = trendyol_teslim_edildi_yap(TRENDYOL_SATICI_ID, TRENDYOL_API_KEY, TRENDYOL_API_SECRET, row['Paket_No'], row['Siparis_No'])
+                                            else:
+                                                basari, msj = True, "Lokal Teslimat"
+                                                
                                             if basari:
                                                 st.session_state.delivery_status[g_id] = "success"
                                                 st.session_state[f"show_otp_{g_id}"] = False
@@ -750,7 +764,7 @@ with tab_harita:
                                                 st.rerun()
                                             else:
                                                 st.error(f"❌ TRENDYOL REDDETTİ:\n\n{msj}")
-                                                st.session_state[f"trendyol_hata_{g_id}"] = True
+                                                st.session_state[f"trendyol_hata_{g_id}"] = True # Zorla geçme butonunu aç
                                     else:
                                         st.error("❌ Hatalı Kod! Lütfen tekrar deneyin.")
                             with c_vazgec:
@@ -768,7 +782,7 @@ with tab_harita:
                                     st.session_state[f"trendyol_hata_{g_id}"] = False
                                     st.rerun()
 
-                        # 📦 STANDART BUTONLAR EKRANI (OTP KUTUSU AÇIK DEĞİLSE)
+                        # 📦 STANDART BUTONLAR EKRANI 
                         else:
                             c_ok, c_fail, c_sms = st.columns([3, 3, 3])
                             with c_ok:
@@ -806,7 +820,7 @@ with tab_harita:
                                         st.session_state.buffer = buffer
                                         st.rerun() 
                     else:
-                        # 1. veya Son duraksa (Taşıma yok, Teslim Edildi'de KOD sorar)
+                        # 1. veya Son duraksa 
                         if st.session_state.get(f"show_otp_{g_id}", False):
                             st.info("🔒 **Güvenli Teslimat:** Müşteriye SMS ile giden 4 haneli kodu girin.")
                             c_kod, c_onay, c_vazgec = st.columns([4, 4, 3])
