@@ -7,6 +7,7 @@ import folium
 import io
 import re
 import requests
+import random  # 🌟 OTP (Güvenli Teslimat Kodu) Üretmek İçin Eklendi
 from streamlit_folium import folium_static
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
@@ -121,8 +122,8 @@ def get_candidates(api_key, address):
 
     return candidates
 
-# 📨 NETGSM SMS GÖNDERME FONKSİYONU
-def netgsm_sms_gonder(tel, musteri, paket, urun):
+# 📨 NETGSM SMS GÖNDERME FONKSİYONU (OTP Güvenlik Kodu Eklendi)
+def netgsm_sms_gonder(tel, musteri, paket, urun, kod):
     if NETGSM_KULLANICI == "BURAYA_NETGSM_KULLANICI_ADI_YAZIN":
         return False, "Lütfen kodun en üstünden NetGSM ayarlarınızı doldurun!"
     
@@ -132,7 +133,7 @@ def netgsm_sms_gonder(tel, musteri, paket, urun):
     elif tel_temiz.startswith("90") and len(tel_temiz) == 12:
         tel_temiz = "0" + tel_temiz[2:]
         
-    mesaj = f"Sayin {musteri}, {paket} numarali {urun} siparisiniz dagitima cikmistir. Ersan Dizayn."
+    mesaj = f"Sayin {musteri}, {paket} numarali {urun} siparisiniz dagitima cikmistir. Guvenli teslimat kodunuz: {kod}. Ersan Dizayn."
     tr_chars = str.maketrans("çğıöşüÇĞİÖŞÜ", "cgiosuCGIOSU")
     mesaj = mesaj.translate(tr_chars)
     
@@ -168,8 +169,9 @@ if 'temp_selection' not in st.session_state: st.session_state.temp_selection = N
 if 'temp_lat' not in st.session_state: st.session_state.temp_lat = None
 if 'temp_lng' not in st.session_state: st.session_state.temp_lng = None
 if 'delivery_status' not in st.session_state: st.session_state.delivery_status = {} 
+# GİZLİ SÜTUN EKLENDİ: Teslimat_Kodu
 if 'df_validated' not in st.session_state: 
-    st.session_state.df_validated = pd.DataFrame(columns=['Paket_No', 'Siparis_No', 'Alici_Ad', 'Adres', 'Urun_Adi', 'Adet', 'Telefon', 'Gizli_ID', 'Onayli_Enlem', 'Onayli_Boylam'])
+    st.session_state.df_validated = pd.DataFrame(columns=['Paket_No', 'Siparis_No', 'Alici_Ad', 'Adres', 'Urun_Adi', 'Adet', 'Telefon', 'Gizli_ID', 'Onayli_Enlem', 'Onayli_Boylam', 'Teslimat_Kodu'])
 if 'manual_search_results' not in st.session_state: st.session_state.manual_search_results = []
 if 'manual_selected' not in st.session_state: st.session_state.manual_selected = None
 
@@ -203,6 +205,9 @@ with tab_kurulum:
             df_raw['Urun_Adi'] = df_raw['Urun_Adi'].astype(str).replace('nan', '-')
             df_raw['Adet'] = df_raw['Adet'].astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '1')
             df_raw['Gizli_ID'] = df_raw.index + 1
+            
+            # 🌟 HER SİPARİŞE OTOMATİK 4 HANELİ GİZLİ KOD OLUŞTURMA
+            df_raw['Teslimat_Kodu'] = [str(random.randint(1000, 9999)) for _ in range(len(df_raw))]
             
             st.session_state.raw_df = df_raw
             st.session_state.wizard_step = 0
@@ -333,6 +338,7 @@ with tab_harita:
     st.markdown("---") 
     liste_kutusu = st.container()
     
+    # ➕ MANUEL SİPARİŞ EKLEME KUTUSU
     with manuel_ekleme_kutusu:
         with st.expander("➕ MANUEL SİPARİŞ / YENİ ADRES EKLE (Tıkla Aç)", expanded=False):
             st.markdown("WhatsApp'tan vb. gelen anlık siparişleri Excel'e dokunmadan buradan ekleyebilirsiniz.")
@@ -382,11 +388,17 @@ with tab_harita:
                             max_id = st.session_state.df_validated['Gizli_ID'].max()
                         
                         new_row = {
-                            'Paket_No': m_pak if m_pak else "-", 'Siparis_No': m_sip if m_sip else "-",
-                            'Alici_Ad': m_ad if m_ad else "Manuel Müşteri", 'Adres': st.session_state.manual_selected['label'],
-                            'Urun_Adi': m_urun if m_urun else "-", 'Adet': m_adet if m_adet else "1",
-                            'Telefon': m_tel if m_tel else "-", 'Gizli_ID': max_id + 1,
-                            'Onayli_Enlem': st.session_state.manual_selected['lat'], 'Onayli_Boylam': st.session_state.manual_selected['lng']
+                            'Paket_No': m_pak if m_pak else "-", 
+                            'Siparis_No': m_sip if m_sip else "-",
+                            'Alici_Ad': m_ad if m_ad else "Manuel Müşteri", 
+                            'Adres': st.session_state.manual_selected['label'],
+                            'Urun_Adi': m_urun if m_urun else "-",
+                            'Adet': m_adet if m_adet else "1",
+                            'Telefon': m_tel if m_tel else "-", 
+                            'Gizli_ID': max_id + 1,
+                            'Onayli_Enlem': st.session_state.manual_selected['lat'], 
+                            'Onayli_Boylam': st.session_state.manual_selected['lng'],
+                            'Teslimat_Kodu': str(random.randint(1000, 9999)) # 🌟 Manuel eklenenlere de gizli kod üret
                         }
                         st.session_state.df_validated = pd.concat([st.session_state.df_validated, pd.DataFrame([new_row])], ignore_index=True)
                         st.session_state.validation_complete = True 
@@ -470,7 +482,7 @@ with tab_harita:
                                     elif start_tip == "gps": s_ad, s_adres = "📍 ŞOFÖR (GPS)", f"{loc['latitude']},{loc['longitude']}"
                                     else: s_ad, s_adres = "🟢 ÖZEL BAŞLANGIÇ", ozel_baslangic
                                         
-                                    nodes.append({'Siparis_No': 'START', 'Paket_No': '-', 'Urun_Adi': '-', 'Adet': '-', 'Gizli_ID': '-', 'Alici_Ad': s_ad, 'Adres': s_adres, 'Telefon': '-'})
+                                    nodes.append({'Siparis_No': 'START', 'Paket_No': '-', 'Urun_Adi': '-', 'Adet': '-', 'Gizli_ID': '-', 'Alici_Ad': s_ad, 'Adres': s_adres, 'Telefon': '-', 'Teslimat_Kodu': '-'})
                                     start_node_index = 0
 
                                 if not ring_rotasi and end_tip != "musteri":
@@ -478,7 +490,7 @@ with tab_harita:
                                     elif end_tip == "gps": e_ad, e_adres = "📍 ŞOFÖR (GPS)", f"{loc['latitude']},{loc['longitude']}"
                                     else: e_ad, e_adres = "🔴 ÖZEL BİTİŞ", ozel_bitis
                                         
-                                    nodes.append({'Siparis_No': 'END', 'Paket_No': '-', 'Urun_Adi': '-', 'Adet': '-', 'Gizli_ID': '-', 'Alici_Ad': e_ad, 'Adres': e_adres, 'Telefon': '-'})
+                                    nodes.append({'Siparis_No': 'END', 'Paket_No': '-', 'Urun_Adi': '-', 'Adet': '-', 'Gizli_ID': '-', 'Alici_Ad': e_ad, 'Adres': e_adres, 'Telefon': '-', 'Teslimat_Kodu': '-'})
                                     end_node_index = len(nodes) - 1
 
                                 musteri_offset = len(nodes)
@@ -658,6 +670,8 @@ with tab_harita:
                 lat = row['Enlem']
                 lon = row['Boylam']
                 g_id = row['Gizli_ID']
+                # 🌟 GİZLİ KOD HAFIZADAN ÇAĞRILIYOR AMA EKRANA YAZILMIYOR
+                gizli_kod = row.get('Teslimat_Kodu', '0000') 
                 
                 tel_temiz = "".join(filter(str.isdigit, str(row['Telefon'])))
                 if tel_temiz.startswith("0"): tel_temiz = "9" + tel_temiz
@@ -702,7 +716,6 @@ with tab_harita:
 </div>"""
                 st.markdown(kart_html, unsafe_allow_html=True)
                 
-                # 🌟 AKSİYON BUTONLARI (Onay, İptal, SMS ve Sıralama)
                 if status == 'pending':
                     if 1 < durak_no < len(st.session_state.sirali_df):
                         c_ok, c_fail, c_sms = st.columns([3, 3, 3])
@@ -718,7 +731,8 @@ with tab_harita:
                         with c_sms:
                             if st.button("📨 SMS Gönder", key=f"sms_{g_id}", use_container_width=True):
                                 with st.spinner("SMS Gönderiliyor..."):
-                                    basari, msj = netgsm_sms_gonder(tel_temiz, row['Alici_Ad'], row['Paket_No'], row['Urun_Adi'])
+                                    # 🌟 GİZLİ KOD SADECE SMS FONKSİYONUNA GİDİYOR
+                                    basari, msj = netgsm_sms_gonder(tel_temiz, row['Alici_Ad'], row['Paket_No'], row['Urun_Adi'], gizli_kod)
                                     if basari:
                                         st.toast(f"✅ {row['Alici_Ad']} kişisine SMS gönderildi!")
                                     else:
@@ -744,7 +758,6 @@ with tab_harita:
                                     st.session_state.buffer = buffer
                                     st.rerun() 
                     else:
-                        # 1. veya Son duraksa SADECE TAŞIMA KUTUSU GİZLİ (SMS EKLENDİ)
                         c_ok, c_fail, c_sms = st.columns([3, 3, 3])
                         with c_ok:
                             if st.button("✅ Teslim Edildi", key=f"ok_{g_id}", use_container_width=True):
@@ -757,7 +770,7 @@ with tab_harita:
                         with c_sms:
                             if st.button("📨 SMS Gönder", key=f"sms_{g_id}", use_container_width=True):
                                 with st.spinner("SMS Gönderiliyor..."):
-                                    basari, msj = netgsm_sms_gonder(tel_temiz, row['Alici_Ad'], row['Paket_No'], row['Urun_Adi'])
+                                    basari, msj = netgsm_sms_gonder(tel_temiz, row['Alici_Ad'], row['Paket_No'], row['Urun_Adi'], gizli_kod)
                                     if basari:
                                         st.toast(f"✅ {row['Alici_Ad']} kişisine SMS gönderildi!")
                                     else:
