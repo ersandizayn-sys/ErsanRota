@@ -6,7 +6,7 @@ import datetime
 import folium
 import io
 import re
-import requests  # NETGSM ve Web İstekleri İçin Eklendi
+import requests
 from streamlit_folium import folium_static
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
@@ -22,7 +22,7 @@ GOOGLE_MAPS_API_KEY = "AIzaSyAbn2TCWJDpKimkoKKb0cNcGWQj9gUF-Mg"
 # ==========================================
 NETGSM_KULLANICI = "8503056628"
 NETGSM_SIFRE = "T6-7376K"
-NETGSM_BASLIK = "ERSANDIZAYN" # Örn: ERSANDIZAYN veya Numaranız
+NETGSM_BASLIK = "ERSANDIZAYN" # Örn: ERSANDIZAYN
 
 # 1. Panel Sayfa Ayarları
 st.set_page_config(page_title="Ersan Dizayn Rota Paneli", layout="wide", initial_sidebar_state="collapsed")
@@ -126,7 +126,6 @@ def netgsm_sms_gonder(tel, musteri, paket, urun):
     if NETGSM_KULLANICI == "BURAYA_NETGSM_KULLANICI_ADI_YAZIN":
         return False, "Lütfen kodun en üstünden NetGSM ayarlarınızı doldurun!"
     
-    # Telefon numarasını başı "0" olacak şekilde 11 haneli temizliyoruz
     tel_temiz = "".join(filter(str.isdigit, str(tel)))
     if len(tel_temiz) == 10:
         tel_temiz = "0" + tel_temiz
@@ -134,8 +133,6 @@ def netgsm_sms_gonder(tel, musteri, paket, urun):
         tel_temiz = "0" + tel_temiz[2:]
         
     mesaj = f"Sayin {musteri}, {paket} numarali {urun} siparisiniz dagitima cikmistir. Ersan Dizayn."
-    
-    # SMS patlamaması için Türkçe karakterleri İngilizce harflere çeviriyoruz
     tr_chars = str.maketrans("çğıöşüÇĞİÖŞÜ", "cgiosuCGIOSU")
     mesaj = mesaj.translate(tr_chars)
     
@@ -336,7 +333,6 @@ with tab_harita:
     st.markdown("---") 
     liste_kutusu = st.container()
     
-    # ➕ MANUEL SİPARİŞ EKLEME KUTUSU
     with manuel_ekleme_kutusu:
         with st.expander("➕ MANUEL SİPARİŞ / YENİ ADRES EKLE (Tıkla Aç)", expanded=False):
             st.markdown("WhatsApp'tan vb. gelen anlık siparişleri Excel'e dokunmadan buradan ekleyebilirsiniz.")
@@ -638,7 +634,7 @@ with tab_harita:
             
             st.download_button("📥 Optimize Edilmiş Rotayı Excel Olarak İndir", data=st.session_state.buffer, file_name=st.session_state.dosya_adi, mime="application/vnd.ms-excel")
 
-    # --- ALT KISIM: ŞOFÖR MODU ---
+    # --- ALT KISIM: ŞOFÖR MODU (MANUEL SIRALAMA VE ONAY SİSTEMİ) ---
     if st.session_state.harita_hazir:
         with liste_kutusu:
             st.markdown("### 📱 Teslimat Sırası (Şoför Modu)")
@@ -748,8 +744,8 @@ with tab_harita:
                                     st.session_state.buffer = buffer
                                     st.rerun() 
                     else:
-                        # 1. veya Son duraksa
-                        c_ok, c_fail = st.columns(2)
+                        # 1. veya Son duraksa SADECE TAŞIMA KUTUSU GİZLİ (SMS EKLENDİ)
+                        c_ok, c_fail, c_sms = st.columns([3, 3, 3])
                         with c_ok:
                             if st.button("✅ Teslim Edildi", key=f"ok_{g_id}", use_container_width=True):
                                 st.session_state.delivery_status[g_id] = "success"
@@ -758,6 +754,14 @@ with tab_harita:
                             if st.button("❌ İptal / Edilemedi", key=f"fail_{g_id}", use_container_width=True):
                                 st.session_state.delivery_status[g_id] = "failed"
                                 st.rerun()
+                        with c_sms:
+                            if st.button("📨 SMS Gönder", key=f"sms_{g_id}", use_container_width=True):
+                                with st.spinner("SMS Gönderiliyor..."):
+                                    basari, msj = netgsm_sms_gonder(tel_temiz, row['Alici_Ad'], row['Paket_No'], row['Urun_Adi'])
+                                    if basari:
+                                        st.toast(f"✅ {row['Alici_Ad']} kişisine SMS gönderildi!")
+                                    else:
+                                        st.error(f"❌ {msj}")
 
                     st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
 
