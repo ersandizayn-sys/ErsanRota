@@ -8,7 +8,7 @@ import io
 import re
 import requests
 import random
-import base64 # Trendyol API şifrelemesi için
+import base64
 from streamlit_folium import folium_static
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
@@ -48,9 +48,7 @@ st.markdown("""
     footer { visibility: hidden; }
     header { visibility: hidden; }
 
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px; background-color: transparent;
-    }
+    .stTabs [data-baseweb="tab-list"] { gap: 8px; background-color: transparent; }
     .stTabs [data-baseweb="tab"] {
         height: 50px; border-radius: 8px 8px 0px 0px; padding: 10px 24px;
         background-color: #1e1e24; border: 1px solid #333; border-bottom: none;
@@ -113,9 +111,7 @@ def get_candidates(api_key, address):
             addr = r.get('formatted_address', '')
             if addr and addr not in seen_addresses:
                 seen_addresses.add(addr)
-                candidates.append({
-                    "label": addr, "lat": r['geometry']['location']['lat'], "lng": r['geometry']['location']['lng']
-                })
+                candidates.append({"label": addr, "lat": r['geometry']['location']['lat'], "lng": r['geometry']['location']['lng']})
 
     try: add_result(gmaps.geocode(f"{address}, Türkiye"))
     except: pass
@@ -149,10 +145,7 @@ def netgsm_sms_gonder(tel, musteri, paket, urun, kod):
     mesaj = mesaj.translate(tr_chars)
     
     url = "https://api.netgsm.com.tr/sms/send/get"
-    payload = {
-        "usercode": NETGSM_KULLANICI, "password": NETGSM_SIFRE,
-        "gsmno": tel_temiz, "message": mesaj, "msgheader": NETGSM_BASLIK
-    }
+    payload = {"usercode": NETGSM_KULLANICI, "password": NETGSM_SIFRE, "gsmno": tel_temiz, "message": mesaj, "msgheader": NETGSM_BASLIK}
     try:
         r = requests.get(url, params=payload, timeout=10)
         if r.status_code == 200 and r.text.startswith("00"): return True, "SMS Başarılı"
@@ -162,28 +155,19 @@ def netgsm_sms_gonder(tel, musteri, paket, urun, kod):
 # 🛒 TRENDYOL API TESLİM EDİLDİ FONKSİYONU
 def trendyol_teslim_edildi_yap(satici_id, api_key, api_secret, paket_no):
     if satici_id == "BURAYA_TRENDYOL_SATICI_ID_YAZIN" or paket_no == "-" or paket_no == "":
-        return False, "Trendyol API ayarları veya Paket No eksik! İşlem lokal olarak kaydedildi."
+        return False, "Trendyol API ayarları veya Paket No eksik! Sistemde lokal olarak teslim edildi işaretleniyor."
     
-    # Trendyol Kendi Teslimatım (Self-Delivery) Paket Teslim Endpoint'i
     url = f"https://api.trendyol.com/sap/ig/suppliers/{satici_id}/shipment-packages/{paket_no}/deliver"
-    
     auth_str = f"{api_key}:{api_secret}"
     b64_auth_str = base64.b64encode(auth_str.encode('ascii')).decode('ascii')
     
-    headers = {
-        "Authorization": f"Basic {b64_auth_str}",
-        "Content-Type": "application/json"
-    }
+    headers = {"Authorization": f"Basic {b64_auth_str}", "Content-Type": "application/json"}
     
     try:
-        # Trendyol API'sine paket teslim edildi (PUT) isteği yolluyoruz
         r = requests.put(url, headers=headers, timeout=15)
-        if r.status_code in [200, 204]:
-            return True, "Trendyol'da başarıyla Teslim Edildi!"
-        else:
-            return False, f"Trendyol API Hatası: {r.status_code} - {r.text}"
-    except Exception as e:
-        return False, f"Trendyol Bağlantı Hatası: {str(e)}"
+        if r.status_code in [200, 204]: return True, "Trendyol'da başarıyla Teslim Edildi!"
+        else: return False, f"Trendyol API Hatası: {r.status_code} - {r.text}"
+    except Exception as e: return False, f"Trendyol Bağlantı Hatası: {str(e)}"
 
 st.title("🚚 Ersan Dizayn Rota Kontrol Merkezi")
 
@@ -724,38 +708,46 @@ with tab_harita:
 </div>"""
                 st.markdown(kart_html, unsafe_allow_html=True)
                 
+                # 🌟 AKSİYON BUTONLARI (Onay, İptal, SMS ve Sıralama)
                 if status == 'pending':
+                    # 1. ve Son Durak Hariç İşlemler
                     if 1 < durak_no < len(st.session_state.sirali_df):
                         
-                        # 🔒 GÜVENLİ TESLİMAT KODU (OTP) EKRANI 
+                        # 🔒 GÜVENLİ TESLİMAT KODU (OTP) EKRANI AKTİF
                         if st.session_state.get(f"show_otp_{g_id}", False):
-                            st.markdown("🔒 **Güvenli Teslimat Onayı**")
-                            c_kod, c_onay, c_iptal = st.columns([4, 3, 3])
+                            st.info("🔒 **Güvenli Teslimat:** Müşteriye SMS ile giden 4 haneli kodu girin.")
+                            c_kod, c_onay, c_vazgec = st.columns([4, 4, 3])
                             with c_kod:
-                                girilen_kod = st.text_input("4 Haneli Kod:", key=f"inp_otp_{g_id}", label_visibility="collapsed", placeholder="Kodu Girin")
+                                girilen_kod = st.text_input("Kod:", key=f"inp_{g_id}", placeholder="Örn: 1234", label_visibility="collapsed")
                             with c_onay:
-                                if st.button("Kodu Doğrula", key=f"btn_otp_{g_id}", type="primary", use_container_width=True):
+                                if st.button("✔️ Doğrula ve Teslim Et", key=f"dogrula_{g_id}", type="primary", use_container_width=True):
                                     if girilen_kod == str(gizli_kod):
                                         with st.spinner("Trendyol'a bildiriliyor..."):
                                             basari, msj = trendyol_teslim_edildi_yap(TRENDYOL_SATICI_ID, TRENDYOL_API_KEY, TRENDYOL_API_SECRET, row['Paket_No'])
                                             if basari:
                                                 st.session_state.delivery_status[g_id] = "success"
                                                 st.session_state[f"show_otp_{g_id}"] = False
-                                                st.toast("✅ Paket Başarıyla Teslim Edildi!")
+                                                st.toast("✅ Paket Başarıyla Teslim Edildi ve Trendyol'a Bildirildi!")
                                                 st.rerun()
                                             else:
-                                                st.error(msj)
+                                                # Trendyol hatası verse bile kodu doğru girdiği için sistemi tamamla (test amaçlı)
+                                                st.warning(msj)
+                                                st.session_state.delivery_status[g_id] = "success"
+                                                st.session_state[f"show_otp_{g_id}"] = False
+                                                st.rerun()
                                     else:
                                         st.error("❌ Hatalı Kod!")
-                            with c_iptal:
-                                if st.button("Vazgeç", key=f"btn_vzg_{g_id}", use_container_width=True):
+                            with c_vazgec:
+                                if st.button("⬅️ Vazgeç", key=f"vzg_{g_id}", use_container_width=True):
                                     st.session_state[f"show_otp_{g_id}"] = False
                                     st.rerun()
+                        
+                        # STANDART BUTONLAR EKRANI (OTP KUTUSU AÇIK DEĞİLSE)
                         else:
-                            # 📦 STANDART BUTONLAR (OTP GİZLİYKEN)
                             c_ok, c_fail, c_sms = st.columns([3, 3, 3])
                             with c_ok:
                                 if st.button("✅ Teslim Edildi", key=f"ok_{g_id}", use_container_width=True):
+                                    # BUTONA BASINCA ARTIK DİREKT BİTİRMİYOR, KOD EKRANINI AÇIYOR
                                     st.session_state[f"show_otp_{g_id}"] = True
                                     st.rerun()
                             with c_fail:
@@ -789,7 +781,7 @@ with tab_harita:
                                         st.session_state.buffer = buffer
                                         st.rerun() 
                     else:
-                        # 1. veya Son duraksa
+                        # 1. veya Son duraksa (Buralara Teslimat Olmuyor Zaten)
                         c_ok, c_fail, c_sms = st.columns([3, 3, 3])
                         with c_ok:
                             if st.button("✅ Teslim Edildi", key=f"ok_{g_id}", use_container_width=True):
