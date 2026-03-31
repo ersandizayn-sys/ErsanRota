@@ -24,7 +24,7 @@ GOOGLE_MAPS_API_KEY = "AIzaSyAbn2TCWJDpKimkoKKb0cNcGWQj9gUF-Mg"
 # ==========================================
 NETGSM_KULLANICI = "8503056628"
 NETGSM_SIFRE = "T6-7376K"
-NETGSM_BASLIK = "ERSANDIZAYN" # Örn: ERSANDIZAYN
+NETGSM_BASLIK = "ERSANDIZAYN" 
 
 # ==========================================
 # 🔑 TRENDYOL API AYARLARI (TESLİMAT İÇİN) 🔑
@@ -97,16 +97,11 @@ st.markdown("""
     [data-testid="stNumberInputStepUp"], 
     [data-testid="stNumberInputStepDown"] { display: none !important; }
 
-    /* 🌟 YENİ EKLENDİ: OTP KODU İÇİN ÖZEL INPUT TASARIMI 🌟 */
+    /* OTP KODU İÇİN ÖZEL INPUT TASARIMI */
     [data-testid="stTextInput"] > div > div > input {
-        background-color: #1e1e24 !important;
-        border: 2px solid #1e88e5 !important;
-        color: #fff !important;
-        font-size: 18px !important;
-        font-weight: bold !important;
-        text-align: center !important;
-        border-radius: 8px !important;
-        padding: 10px !important;
+        background-color: #1e1e24 !important; border: 2px solid #1e88e5 !important;
+        color: #fff !important; font-size: 18px !important; font-weight: bold !important;
+        text-align: center !important; border-radius: 8px !important; padding: 10px !important;
     }
     [data-testid="stTextInput"] > div > div > input:focus {
         box-shadow: 0 0 10px rgba(30, 136, 229, 0.7) !important;
@@ -167,22 +162,30 @@ def netgsm_sms_gonder(tel, musteri, paket, urun, kod):
         else: return False, f"NetGSM Hata Kodu: {r.text}"
     except Exception as e: return False, f"Sistem Hatası: {str(e)}"
 
-# 🛒 TRENDYOL API TESLİM EDİLDİ FONKSİYONU
+# 🛒 TRENDYOL API TESLİM EDİLDİ FONKSİYONU (GÜÇLENDİRİLDİ)
 def trendyol_teslim_edildi_yap(satici_id, api_key, api_secret, paket_no):
     if satici_id == "BURAYA_TRENDYOL_SATICI_ID_YAZIN" or paket_no == "-" or paket_no == "":
-        return False, "Trendyol API ayarları veya Paket No eksik! Sistemde lokal olarak teslim edildi işaretleniyor."
+        return False, "Trendyol API ayarları veya Paket No eksik!"
     
     url = f"https://api.trendyol.com/sap/ig/suppliers/{satici_id}/shipment-packages/{paket_no}/deliver"
     auth_str = f"{api_key}:{api_secret}"
     b64_auth_str = base64.b64encode(auth_str.encode('ascii')).decode('ascii')
     
-    headers = {"Authorization": f"Basic {b64_auth_str}", "Content-Type": "application/json"}
+    # User-Agent ve JSON eklenerek güvenlik duvarları aşıldı
+    headers = {
+        "Authorization": f"Basic {b64_auth_str}", 
+        "Content-Type": "application/json",
+        "User-Agent": f"{satici_id} - ErsanDizayn"
+    }
     
     try:
-        r = requests.put(url, headers=headers, timeout=15)
-        if r.status_code in [200, 204]: return True, "Trendyol'da başarıyla Teslim Edildi!"
-        else: return False, f"Trendyol API Hatası: {r.status_code} - {r.text}"
-    except Exception as e: return False, f"Trendyol Bağlantı Hatası: {str(e)}"
+        r = requests.put(url, headers=headers, json={}, timeout=15)
+        if r.status_code in [200, 204]: 
+            return True, "Trendyol'da başarıyla Teslim Edildi!"
+        else: 
+            return False, f"Hata Kodu {r.status_code}: {r.text}"
+    except Exception as e: 
+        return False, f"Bağlantı Hatası: {str(e)}"
 
 st.title("🚚 Ersan Dizayn Rota Kontrol Merkezi")
 
@@ -734,10 +737,10 @@ with tab_harita:
                         with c_kod:
                             girilen_kod = st.text_input("Kod:", key=f"inp_{g_id}", placeholder="Örn: 1234", label_visibility="collapsed")
                         with c_onay:
-                            if st.button("✔️ Doğrula ve Teslim Et", key=f"dogrula_{g_id}", type="primary", use_container_width=True):
+                            if st.button("✔️ Doğrula", key=f"dogrula_{g_id}", type="primary", use_container_width=True):
                                 if girilen_kod == str(gizli_kod):
                                     with st.spinner("Trendyol'a bildiriliyor..."):
-                                        # Trendyol API'sine gönderim (Başlangıç/Bitiş durakları hariç)
+                                        # Başlangıç ve Bitiş Durakları Trendyol'a iletilmez
                                         if g_id != '-':
                                             basari, msj = trendyol_teslim_edildi_yap(TRENDYOL_SATICI_ID, TRENDYOL_API_KEY, TRENDYOL_API_SECRET, row['Paket_No'])
                                         else:
@@ -749,18 +752,25 @@ with tab_harita:
                                             st.toast("✅ Paket Başarıyla Teslim Edildi ve Trendyol'a Bildirildi!")
                                             st.rerun()
                                         else:
-                                            # Trendyol hatası verse bile kodu doğru girdiği için sistemi tamamla (test amaçlı)
-                                            st.warning(msj)
-                                            st.session_state.delivery_status[g_id] = "success"
-                                            st.session_state[f"show_otp_{g_id}"] = False
-                                            st.rerun()
+                                            st.error(f"❌ TRENDYOL REDDETTİ:\n\n{msj}")
+                                            st.session_state[f"trendyol_hata_{g_id}"] = True # Zorla geçme butonunu aç
                                 else:
-                                    st.error("❌ Hatalı Kod!")
+                                    st.error("❌ Hatalı Kod! Lütfen tekrar deneyin.")
                         with c_vazgec:
                             if st.button("⬅️ Vazgeç", key=f"vzg_{g_id}", use_container_width=True):
                                 st.session_state[f"show_otp_{g_id}"] = False
+                                st.session_state[f"trendyol_hata_{g_id}"] = False
                                 st.rerun()
-                    
+                                
+                        # ⚠️ TRENDYOL HATA VERİRSE ÇIKACAK BYPASS (ZORLA GEÇ) BUTONU
+                        if st.session_state.get(f"trendyol_hata_{g_id}", False):
+                            st.warning("Trendyol API bu siparişi teslim etmeyi reddetti (Kargoya verilmemiş olabilir veya sipariş Trendyol'dan değildir). Sistemi devam ettirmek için lokal olarak teslim edebilirsiniz.")
+                            if st.button("⚠️ Trendyol'u Yoksay ve Sadece Uygulamada Teslim Et", key=f"force_{g_id}", use_container_width=True):
+                                st.session_state.delivery_status[g_id] = "success"
+                                st.session_state[f"show_otp_{g_id}"] = False
+                                st.session_state[f"trendyol_hata_{g_id}"] = False
+                                st.rerun()
+
                     # ========================================================
                     # 📦 STANDART BUTONLAR EKRANI (OTP KUTUSU AÇIK DEĞİLSE)
                     # ========================================================
