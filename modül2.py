@@ -162,13 +162,13 @@ def netgsm_sms_gonder(tel, musteri, paket, urun, kod):
         else: return False, f"NetGSM Hata Kodu: {r.text}"
     except Exception as e: return False, f"Sistem Hatası: {str(e)}"
 
-# 🛒 TRENDYOL API TESLİM EDİLDİ FONKSİYONU (GÜNCEL APIGW LİNKİ)
+# 🛒 TRENDYOL API TESLİM EDİLDİ FONKSİYONU (MANUAL DELIVER GÜNCELLEMESİ)
 def trendyol_teslim_edildi_yap(satici_id, api_key, api_secret, paket_no):
     if satici_id == "BURAYA_TRENDYOL_SATICI_ID_YAZIN" or paket_no == "-" or paket_no == "":
         return False, "Trendyol API ayarları veya Paket No eksik!"
     
-    # GÜNCEL VE RESMİ TRENDYOL API LİNKİ
-    url = f"https://apigw.trendyol.com/integration/order/sellers/{satici_id}/shipment-packages/{paket_no}"
+    # 🌟 GÜNCEL VE RESMİ TRENDYOL MANUEL TESLİMAT LİNKİ
+    url = f"https://apigw.trendyol.com/integration/order/sellers/{satici_id}/shipment-packages/{paket_no}/manual-deliver"
     auth_str = f"{api_key}:{api_secret}"
     b64_auth_str = base64.b64encode(auth_str.encode('ascii')).decode('ascii')
     
@@ -178,13 +178,9 @@ def trendyol_teslim_edildi_yap(satici_id, api_key, api_secret, paket_no):
         "User-Agent": f"{satici_id} - ErsanDizayn"
     }
     
-    # Trendyol'a statü güncelleme isteği
-    payload = {
-        "status": "Delivered"
-    }
-    
     try:
-        r = requests.put(url, headers=headers, json=payload, timeout=15)
+        # manual-deliver servisi gövde (body) beklemez
+        r = requests.put(url, headers=headers, json={}, timeout=15)
         if r.status_code in [200, 204]: 
             return True, "Trendyol'da başarıyla Teslim Edildi!"
         else: 
@@ -733,49 +729,47 @@ with tab_harita:
                 
                 # 🌟 AKSİYON BUTONLARI (Onay, İptal, SMS ve Sıralama)
                 if status == 'pending':
-                    # 🔒 GÜVENLİ TESLİMAT KODU (OTP) EKRANI AKTİF
-                    if st.session_state.get(f"show_otp_{g_id}", False):
-                        st.info("🔒 **Güvenli Teslimat:** Müşteriye SMS ile giden 4 haneli kodu girin.")
-                        c_kod, c_onay, c_vazgec = st.columns([4, 4, 3])
-                        with c_kod:
-                            girilen_kod = st.text_input("Kod:", key=f"inp_{g_id}", placeholder="Örn: 1234", label_visibility="collapsed")
-                        with c_onay:
-                            if st.button("✔️ Doğrula", key=f"dogrula_{g_id}", type="primary", use_container_width=True):
-                                if girilen_kod == str(gizli_kod):
-                                    with st.spinner("Trendyol'a bildiriliyor..."):
-                                        if g_id != '-':
+                    # 1. ve Son Durak Hariç İşlemler
+                    if 1 < durak_no < len(st.session_state.sirali_df):
+                        
+                        # 🔒 GÜVENLİ TESLİMAT KODU (OTP) EKRANI AKTİF
+                        if st.session_state.get(f"show_otp_{g_id}", False):
+                            st.info("🔒 **Güvenli Teslimat:** Müşteriye SMS ile giden 4 haneli kodu girin.")
+                            c_kod, c_onay, c_vazgec = st.columns([4, 4, 3])
+                            with c_kod:
+                                girilen_kod = st.text_input("Kod:", key=f"inp_{g_id}", placeholder="Örn: 1234", label_visibility="collapsed")
+                            with c_onay:
+                                if st.button("✔️ Doğrula", key=f"dogrula_{g_id}", type="primary", use_container_width=True):
+                                    if girilen_kod == str(gizli_kod):
+                                        with st.spinner("Trendyol'a bildiriliyor..."):
                                             basari, msj = trendyol_teslim_edildi_yap(TRENDYOL_SATICI_ID, TRENDYOL_API_KEY, TRENDYOL_API_SECRET, row['Paket_No'])
-                                        else:
-                                            basari, msj = True, "Lokal Teslimat"
-                                            
-                                        if basari:
-                                            st.session_state.delivery_status[g_id] = "success"
-                                            st.session_state[f"show_otp_{g_id}"] = False
-                                            st.toast("✅ Paket Başarıyla Teslim Edildi ve Trendyol'a Bildirildi!")
-                                            st.rerun()
-                                        else:
-                                            st.error(f"❌ TRENDYOL REDDETTİ:\n\n{msj}")
-                                            st.session_state[f"trendyol_hata_{g_id}"] = True
-                                else:
-                                    st.error("❌ Hatalı Kod! Lütfen tekrar deneyin.")
-                        with c_vazgec:
-                            if st.button("⬅️ Vazgeç", key=f"vzg_{g_id}", use_container_width=True):
-                                st.session_state[f"show_otp_{g_id}"] = False
-                                st.session_state[f"trendyol_hata_{g_id}"] = False
-                                st.rerun()
-                                
-                        # ⚠️ TRENDYOL HATA VERİRSE ÇIKACAK BYPASS (ZORLA GEÇ) BUTONU
-                        if st.session_state.get(f"trendyol_hata_{g_id}", False):
-                            st.warning("Trendyol API bu siparişi teslim etmeyi reddetti. Sistemi devam ettirmek için lokal olarak teslim edebilirsiniz.")
-                            if st.button("⚠️ Trendyol'u Yoksay ve Sadece Uygulamada Teslim Et", key=f"force_{g_id}", use_container_width=True):
-                                st.session_state.delivery_status[g_id] = "success"
-                                st.session_state[f"show_otp_{g_id}"] = False
-                                st.session_state[f"trendyol_hata_{g_id}"] = False
-                                st.rerun()
+                                            if basari:
+                                                st.session_state.delivery_status[g_id] = "success"
+                                                st.session_state[f"show_otp_{g_id}"] = False
+                                                st.toast("✅ Paket Başarıyla Teslim Edildi ve Trendyol'a Bildirildi!")
+                                                st.rerun()
+                                            else:
+                                                st.error(f"❌ TRENDYOL REDDETTİ:\n\n{msj}")
+                                                st.session_state[f"trendyol_hata_{g_id}"] = True
+                                    else:
+                                        st.error("❌ Hatalı Kod! Lütfen tekrar deneyin.")
+                            with c_vazgec:
+                                if st.button("⬅️ Vazgeç", key=f"vzg_{g_id}", use_container_width=True):
+                                    st.session_state[f"show_otp_{g_id}"] = False
+                                    st.session_state[f"trendyol_hata_{g_id}"] = False
+                                    st.rerun()
+                                    
+                            # ⚠️ TRENDYOL HATA VERİRSE ÇIKACAK BYPASS (ZORLA GEÇ) BUTONU
+                            if st.session_state.get(f"trendyol_hata_{g_id}", False):
+                                st.warning("Trendyol API bu siparişi teslim etmeyi reddetti. Sistemi devam ettirmek için lokal olarak teslim edebilirsiniz.")
+                                if st.button("⚠️ Trendyol'u Yoksay ve Sadece Uygulamada Teslim Et", key=f"force_{g_id}", use_container_width=True):
+                                    st.session_state.delivery_status[g_id] = "success"
+                                    st.session_state[f"show_otp_{g_id}"] = False
+                                    st.session_state[f"trendyol_hata_{g_id}"] = False
+                                    st.rerun()
 
-                    # 📦 STANDART BUTONLAR EKRANI (OTP KUTUSU AÇIK DEĞİLSE)
-                    else:
-                        if 1 < durak_no < len(st.session_state.sirali_df):
+                        # 📦 STANDART BUTONLAR EKRANI (OTP KUTUSU AÇIK DEĞİLSE)
+                        else:
                             c_ok, c_fail, c_sms = st.columns([3, 3, 3])
                             with c_ok:
                                 if st.button("✅ Teslim Edildi", key=f"ok_{g_id}", use_container_width=True):
@@ -811,8 +805,30 @@ with tab_harita:
                                             st.session_state.sirali_df.to_excel(writer, index=False)
                                         st.session_state.buffer = buffer
                                         st.rerun() 
+                    else:
+                        # 1. veya Son duraksa (Taşıma yok, Teslim Edildi'de KOD sorar)
+                        if st.session_state.get(f"show_otp_{g_id}", False):
+                            st.info("🔒 **Güvenli Teslimat:** Müşteriye SMS ile giden 4 haneli kodu girin.")
+                            c_kod, c_onay, c_vazgec = st.columns([4, 4, 3])
+                            with c_kod:
+                                girilen_kod = st.text_input("Kod:", key=f"inp_{g_id}", placeholder="Örn: 1234", label_visibility="collapsed")
+                            with c_onay:
+                                if st.button("✔️ Doğrula", key=f"dogrula_{g_id}", type="primary", use_container_width=True):
+                                    if girilen_kod == str(gizli_kod):
+                                        with st.spinner("Trendyol'a bildiriliyor..."):
+                                            basari, msj = True, "Lokal Teslimat"
+                                            if basari:
+                                                st.session_state.delivery_status[g_id] = "success"
+                                                st.session_state[f"show_otp_{g_id}"] = False
+                                                st.toast("✅ Paket Başarıyla Teslim Edildi!")
+                                                st.rerun()
+                                    else:
+                                        st.error("❌ Hatalı Kod! Lütfen tekrar deneyin.")
+                            with c_vazgec:
+                                if st.button("⬅️ Vazgeç", key=f"vzg_{g_id}", use_container_width=True):
+                                    st.session_state[f"show_otp_{g_id}"] = False
+                                    st.rerun()
                         else:
-                            # 1. veya Son duraksa
                             c_ok, c_fail, c_sms = st.columns([3, 3, 3])
                             with c_ok:
                                 if st.button("✅ Teslim Edildi", key=f"ok_{g_id}", use_container_width=True):
