@@ -8,6 +8,7 @@ import io
 import re
 import requests
 import random
+import base64 # Trendyol API şifrelemesi için
 from streamlit_folium import folium_static
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
@@ -26,9 +27,16 @@ NETGSM_SIFRE = "T6-7376K"
 NETGSM_BASLIK = "ERSANDIZAYN" # Örn: ERSANDIZAYN
 
 # ==========================================
+# 🔑 TRENDYOL API AYARLARI (TESLİMAT İÇİN) 🔑
+# ==========================================
+TRENDYOL_SATICI_ID = "113341"
+TRENDYOL_API_KEY = "ZXbDKYXoLmvup2bdlCZ8"
+TRENDYOL_API_SECRET = "pwTNHm0dgSX6KORXBFIs"
+
+# ==========================================
 # 🔒 SİSTEM GÜVENLİK AYARLARI 🔒
 # ==========================================
-ADMIN_SIFRE = "1453" # Excel indirmek için gereken şifre (Bunu İstediğin Gibi Değiştir)
+ADMIN_SIFRE = "1453" # Excel indirmek için gereken şifre
 
 # 1. Panel Sayfa Ayarları
 st.set_page_config(page_title="Ersan Dizayn Rota Paneli", layout="wide", initial_sidebar_state="collapsed")
@@ -36,12 +44,10 @@ st.set_page_config(page_title="Ersan Dizayn Rota Paneli", layout="wide", initial
 # 🌟 PREMIUM TASARIM CSS ENJEKSİYONU 🌟
 st.markdown("""
 <style>
-    /* Menü ve Footer Gizleme */
     #MainMenu { visibility: hidden; }
     footer { visibility: hidden; }
     header { visibility: hidden; }
 
-    /* Sekme Tasarımları */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px; background-color: transparent;
     }
@@ -55,7 +61,6 @@ st.markdown("""
         border-top: 3px solid #1e88e5; box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
     }
     
-    /* Aksiyon Butonları */
     .action-btn {
         flex: 1; text-align: center; padding: 12px 0; border-radius: 10px;
         text-decoration: none !important; font-weight: 600; font-size: 14px;
@@ -133,13 +138,11 @@ def get_candidates(api_key, address):
 # 📨 NETGSM SMS GÖNDERME FONKSİYONU
 def netgsm_sms_gonder(tel, musteri, paket, urun, kod):
     if NETGSM_KULLANICI == "BURAYA_NETGSM_KULLANICI_ADI_YAZIN":
-        return False, "Lütfen kodun en üstünden NetGSM ayarlarınızı doldurun!"
+        return False, "NetGSM ayarlarınız eksik!"
     
     tel_temiz = "".join(filter(str.isdigit, str(tel)))
-    if len(tel_temiz) == 10:
-        tel_temiz = "0" + tel_temiz
-    elif tel_temiz.startswith("90") and len(tel_temiz) == 12:
-        tel_temiz = "0" + tel_temiz[2:]
+    if len(tel_temiz) == 10: tel_temiz = "0" + tel_temiz
+    elif tel_temiz.startswith("90") and len(tel_temiz) == 12: tel_temiz = "0" + tel_temiz[2:]
         
     mesaj = f"Sayin {musteri}, {paket} numarali {urun} siparisiniz dagitima cikmistir. Guvenli teslimat kodunuz: {kod}. Ersan Dizayn."
     tr_chars = str.maketrans("çğıöşüÇĞİÖŞÜ", "cgiosuCGIOSU")
@@ -147,21 +150,40 @@ def netgsm_sms_gonder(tel, musteri, paket, urun, kod):
     
     url = "https://api.netgsm.com.tr/sms/send/get"
     payload = {
-        "usercode": NETGSM_KULLANICI,
-        "password": NETGSM_SIFRE,
-        "gsmno": tel_temiz,
-        "message": mesaj,
-        "msgheader": NETGSM_BASLIK
+        "usercode": NETGSM_KULLANICI, "password": NETGSM_SIFRE,
+        "gsmno": tel_temiz, "message": mesaj, "msgheader": NETGSM_BASLIK
+    }
+    try:
+        r = requests.get(url, params=payload, timeout=10)
+        if r.status_code == 200 and r.text.startswith("00"): return True, "SMS Başarılı"
+        else: return False, f"NetGSM Hata Kodu: {r.text}"
+    except Exception as e: return False, f"Sistem Hatası: {str(e)}"
+
+# 🛒 TRENDYOL API TESLİM EDİLDİ FONKSİYONU
+def trendyol_teslim_edildi_yap(satici_id, api_key, api_secret, paket_no):
+    if satici_id == "BURAYA_TRENDYOL_SATICI_ID_YAZIN" or paket_no == "-" or paket_no == "":
+        return False, "Trendyol API ayarları veya Paket No eksik! İşlem lokal olarak kaydedildi."
+    
+    # Trendyol Kendi Teslimatım (Self-Delivery) Paket Teslim Endpoint'i
+    url = f"https://api.trendyol.com/sap/ig/suppliers/{satici_id}/shipment-packages/{paket_no}/deliver"
+    
+    auth_str = f"{api_key}:{api_secret}"
+    b64_auth_str = base64.b64encode(auth_str.encode('ascii')).decode('ascii')
+    
+    headers = {
+        "Authorization": f"Basic {b64_auth_str}",
+        "Content-Type": "application/json"
     }
     
     try:
-        r = requests.get(url, params=payload, timeout=10)
-        if r.status_code == 200 and r.text.startswith("00"):
-            return True, "SMS Başarılı"
+        # Trendyol API'sine paket teslim edildi (PUT) isteği yolluyoruz
+        r = requests.put(url, headers=headers, timeout=15)
+        if r.status_code in [200, 204]:
+            return True, "Trendyol'da başarıyla Teslim Edildi!"
         else:
-            return False, f"NetGSM Hata Kodu: {r.text}"
+            return False, f"Trendyol API Hatası: {r.status_code} - {r.text}"
     except Exception as e:
-        return False, f"Sistem Hatası: {str(e)}"
+        return False, f"Trendyol Bağlantı Hatası: {str(e)}"
 
 st.title("🚚 Ersan Dizayn Rota Kontrol Merkezi")
 
@@ -213,7 +235,11 @@ with tab_kurulum:
             df_raw['Adet'] = df_raw['Adet'].astype(str).str.replace(r'\.0$', '', regex=True).replace('nan', '1')
             df_raw['Gizli_ID'] = df_raw.index + 1
             
-            df_raw['Teslimat_Kodu'] = [str(random.randint(1000, 9999)) for _ in range(len(df_raw))]
+            try:
+                benzersiz_kodlar = random.sample(range(1000, 10000), len(df_raw))
+                df_raw['Teslimat_Kodu'] = [str(kod) for kod in benzersiz_kodlar]
+            except ValueError:
+                df_raw['Teslimat_Kodu'] = [str(random.randint(10000, 99999)) for _ in range(len(df_raw))]
             
             st.session_state.raw_df = df_raw
             st.session_state.wizard_step = 0
@@ -279,8 +305,7 @@ with tab_kurulum:
                 st.markdown("---")
                 if st.button("⬅️ Önceki Kayıt (Geri Dön)", disabled=(current == 0), use_container_width=True):
                     st.session_state.wizard_step -= 1
-                    if len(st.session_state.validated_data) > 0: 
-                        st.session_state.validated_data.pop()
+                    if len(st.session_state.validated_data) > 0: st.session_state.validated_data.pop()
                     st.rerun()
 
             else:
@@ -309,19 +334,16 @@ with tab_kurulum:
                         st.rerun()
                 with colB:
                     if st.button("✅ BİLGİLER DOĞRU, SIRADAKİNE GEÇ", type="primary", use_container_width=True):
-                        if secim == "❌ Bu siparişi atla (Rotaya Ekleme)": 
-                            pass 
+                        if secim == "❌ Bu siparişi atla (Rotaya Ekleme)": pass 
                         elif secim == "⚠️ Orijinal metni kullan (Sisteme bırak)":
                             row_dict = row.to_dict()
                             row_dict['Alici_Ad'] = yeni_musteri_adi 
-                            row_dict['Onayli_Enlem'] = None
-                            row_dict['Onayli_Boylam'] = None
+                            row_dict['Onayli_Enlem'], row_dict['Onayli_Boylam'] = None, None
                             st.session_state.validated_data.append(row_dict)
                         else:
                             row_dict = row.to_dict()
                             row_dict['Alici_Ad'] = yeni_musteri_adi 
-                            row_dict['Onayli_Enlem'] = st.session_state.temp_lat
-                            row_dict['Onayli_Boylam'] = st.session_state.temp_lng
+                            row_dict['Onayli_Enlem'], row_dict['Onayli_Boylam'] = st.session_state.temp_lat, st.session_state.temp_lng
                             st.session_state.validated_data.append(row_dict)
                         
                         st.session_state.wizard_step += 1
@@ -348,14 +370,12 @@ with tab_harita:
         with st.expander("➕ MANUEL SİPARİŞ / YENİ ADRES EKLE (Tıkla Aç)", expanded=False):
             st.markdown("WhatsApp'tan vb. gelen anlık siparişleri Excel'e dokunmadan buradan ekleyebilirsiniz.")
             col_search, col_btn = st.columns([4, 1])
-            with col_search: 
-                man_arama = st.text_input("📍 Aranacak Adresi Yazın:")
+            with col_search: man_arama = st.text_input("📍 Aranacak Adresi Yazın:")
             with col_btn:
                 st.markdown("<br>", unsafe_allow_html=True)
                 if st.button("Adresi Bul 🔍", use_container_width=True):
                     if man_arama.strip() != "":
-                        if GOOGLE_MAPS_API_KEY == "BURAYA_KENDI_API_ANAHTARINI_YAZ": 
-                            st.error("API Anahtarı eksik!")
+                        if GOOGLE_MAPS_API_KEY == "BURAYA_KENDI_API_ANAHTARINI_YAZ": st.error("API Anahtarı eksik!")
                         else:
                             with st.spinner("Aranıyor..."):
                                 st.session_state.manual_search_results = get_candidates(GOOGLE_MAPS_API_KEY, man_arama)
@@ -370,11 +390,9 @@ with tab_harita:
             if st.session_state.get('manual_selected'):
                 st.success(f"✅ Seçilen Konum: {st.session_state.manual_selected['label']}")
                 m_ad = st.text_input("👤 Müşteri Adı:", placeholder="Örn: Ahmet Yılmaz")
-                
                 c_tel, c_sip = st.columns(2)
                 m_tel = c_tel.text_input("📞 Telefon:")
                 m_sip = c_sip.text_input("📑 Sipariş No:")
-                
                 c_pak, c_ur, c_ad = st.columns([2, 3, 1])
                 m_pak = c_pak.text_input("📦 Paket No:")
                 m_urun = c_ur.text_input("🛒 Ürün Adı:", placeholder="Örn: Siyah Ayna")
@@ -389,8 +407,12 @@ with tab_harita:
                 with col_ekle:
                     if st.button("💾 Kaydet ve Listeye Ekle", type="primary", use_container_width=True):
                         max_id = 0
-                        if len(st.session_state.df_validated) > 0: 
-                            max_id = st.session_state.df_validated['Gizli_ID'].max()
+                        if len(st.session_state.df_validated) > 0: max_id = st.session_state.df_validated['Gizli_ID'].max()
+                        
+                        yeni_kod = str(random.randint(1000, 9999))
+                        if 'Teslimat_Kodu' in st.session_state.df_validated.columns:
+                            while yeni_kod in st.session_state.df_validated['Teslimat_Kodu'].tolist():
+                                yeni_kod = str(random.randint(1000, 9999))
                         
                         new_row = {
                             'Paket_No': m_pak if m_pak else "-", 'Siparis_No': m_sip if m_sip else "-",
@@ -398,7 +420,7 @@ with tab_harita:
                             'Urun_Adi': m_urun if m_urun else "-", 'Adet': m_adet if m_adet else "1",
                             'Telefon': m_tel if m_tel else "-", 'Gizli_ID': max_id + 1,
                             'Onayli_Enlem': st.session_state.manual_selected['lat'], 'Onayli_Boylam': st.session_state.manual_selected['lng'],
-                            'Teslimat_Kodu': str(random.randint(1000, 9999))
+                            'Teslimat_Kodu': yeni_kod
                         }
                         st.session_state.df_validated = pd.concat([st.session_state.df_validated, pd.DataFrame([new_row])], ignore_index=True)
                         st.session_state.validation_complete = True 
@@ -443,8 +465,7 @@ with tab_harita:
                 default_bitis_idx = len(secenekler) - 1 if len(musteri_listesi) > 0 else 0
                 
                 col_ayar1, col_ayar2 = st.columns(2)
-                with col_ayar1: 
-                    secilen_baslangic = st.selectbox("🟢 Başlangıç Noktası:", secenekler, index=default_baslangic_idx)
+                with col_ayar1: secilen_baslangic = st.selectbox("🟢 Başlangıç Noktası:", secenekler, index=default_baslangic_idx)
                 with col_ayar2:
                     ring_rotasi = st.checkbox("🔄 Rotayı bitirince tekrar Başlangıç Noktasına dön", value=False)
                     if ring_rotasi: secilen_bitis = secilen_baslangic
@@ -477,7 +498,6 @@ with tab_harita:
                                 end_tip, end_idx_raw = parse_secim(secilen_bitis)
 
                                 nodes = []
-                                
                                 if start_tip != "musteri":
                                     if start_tip == "depo": s_ad, s_adres = "🏢 DEPO", "Ersan Dizayn, İstanbul"
                                     elif start_tip == "gps": s_ad, s_adres = "📍 ŞOFÖR (GPS)", f"{loc['latitude']},{loc['longitude']}"
@@ -602,12 +622,10 @@ with tab_harita:
         with harita_kutusu:
             pending_count = 0
             total_customers = 0
-            
             for idx, row in st.session_state.sirali_df.iterrows():
                 if row['Gizli_ID'] != '-':
                     total_customers += 1
-                    if st.session_state.delivery_status.get(row['Gizli_ID'], "pending") == "pending":
-                        pending_count += 1
+                    if st.session_state.delivery_status.get(row['Gizli_ID'], "pending") == "pending": pending_count += 1
                         
             if total_customers > 0 and pending_count == 0:
                 st.success("🎉 ŞAHANE İŞ! SEVKİYAT BİTMİŞTİR! Bütün teslimatlar tamamlandı. Eline sağlık şoför bey! 🚚💨")
@@ -623,41 +641,28 @@ with tab_harita:
                 lat = row['Enlem']
                 lon = row['Boylam']
                 g_id = row['Gizli_ID']
-                
                 koordinat_listesi.append((lat, lon))
                 status = st.session_state.delivery_status.get(g_id, "pending")
                 
-                if g_id == '-': 
-                    if idx == 0: renk_hex = '#4caf50' 
-                    else: renk_hex = '#ff5252' 
-                else: 
-                    if status == "success": renk_hex = '#4caf50' 
-                    elif status == "failed": renk_hex = '#ff5252' 
-                    else: renk_hex = '#2196f3'
+                if g_id == '-': renk_hex = '#4caf50' if idx == 0 else '#ff5252' 
+                else: renk_hex = '#4caf50' if status == "success" else ('#ff5252' if status == "failed" else '#2196f3')
                     
                 marker_html = f'<div style="background-color: {renk_hex}; color: white; border-radius: 50%; width: 26px; height: 26px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 13px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.5);">{idx+1}</div>'
-                
-                folium.Marker(
-                    [lat, lon], popup=f"<b>Durak {idx+1}</b><br>{row['Alici_Ad']}<br>Tel: {row['Telefon']}", tooltip=f"Durak {idx+1}", 
-                    icon=folium.DivIcon(html=marker_html, icon_anchor=(13, 13))
-                ).add_to(m)
+                folium.Marker([lat, lon], popup=f"<b>Durak {idx+1}</b><br>{row['Alici_Ad']}<br>Tel: {row['Telefon']}", tooltip=f"Durak {idx+1}", icon=folium.DivIcon(html=marker_html, icon_anchor=(13, 13))).add_to(m)
                 
             folium.PolyLine(koordinat_listesi, color="#ff4b4b", weight=3, opacity=0.8).add_to(m)
             folium_static(m, width=1200, height=500)
             
-            # 🔒 ŞİFRELİ İNDİRME BÖLÜMÜ EKLENDİ
             st.markdown("<br>### 🔒 Gizli Verileri (Excel) İndir", unsafe_allow_html=True)
             col_pw, col_btn = st.columns([2, 3])
-            with col_pw:
-                girilen_sifre = st.text_input("Admin Şifresini Girin:", type="password")
+            with col_pw: girilen_sifre = st.text_input("Admin Şifresini Girin:", type="password")
             with col_btn:
-                st.markdown("<br>", unsafe_allow_html=True) # Hiza için
+                st.markdown("<br>", unsafe_allow_html=True)
                 if girilen_sifre == ADMIN_SIFRE:
                     st.download_button("📥 Kilit Açıldı: Optimize Edilmiş Rotayı İndir", data=st.session_state.buffer, file_name=st.session_state.dosya_adi, mime="application/vnd.ms-excel", type="primary", use_container_width=True)
-                elif girilen_sifre != "":
-                    st.error("❌ Hatalı şifre!")
+                elif girilen_sifre != "": st.error("❌ Hatalı şifre!")
 
-    # --- ALT KISIM: ŞOFÖR MODU ---
+    # --- ALT KISIM: ŞOFÖR MODU (OTP + TRENDYOL ENTEGRASYONU) ---
     if st.session_state.harita_hazir:
         with liste_kutusu:
             st.markdown("### 📱 Teslimat Sırası (Şoför Modu)")
@@ -667,8 +672,7 @@ with tab_harita:
             
             for idx, row in st.session_state.sirali_df.iterrows():
                 g_id = row['Gizli_ID']
-                if g_id == '-': 
-                    pending_orders.append((idx, row, 'start_end'))
+                if g_id == '-': pending_orders.append((idx, row, 'start_end'))
                 else:
                     status = st.session_state.delivery_status.get(g_id, "pending")
                     if status == "pending": pending_orders.append((idx, row, 'pending'))
@@ -687,15 +691,9 @@ with tab_harita:
                 if tel_temiz.startswith("0"): tel_temiz = "9" + tel_temiz
                 if not tel_temiz.startswith("90") and len(tel_temiz) == 10: tel_temiz = "90" + tel_temiz
                 
-                if durak_no == 1: 
-                    border_color = "#4caf50"
-                    durak_etiketi = "🟢 BAŞLANGIÇ"
-                elif durak_no == len(st.session_state.sirali_df): 
-                    border_color = "#ff5252"
-                    durak_etiketi = "🔴 BİTİŞ"
-                else: 
-                    border_color = "#2196f3"
-                    durak_etiketi = "📦 TESLİMAT"
+                if durak_no == 1: border_color, durak_etiketi = "#4caf50", "🟢 BAŞLANGIÇ"
+                elif durak_no == len(st.session_state.sirali_df): border_color, durak_etiketi = "#ff5252", "🔴 BİTİŞ"
+                else: border_color, durak_etiketi = "#2196f3", "📦 TESLİMAT"
                 
                 urun_html = ""
                 if g_id != '-':
@@ -728,45 +726,70 @@ with tab_harita:
                 
                 if status == 'pending':
                     if 1 < durak_no < len(st.session_state.sirali_df):
-                        c_ok, c_fail, c_sms = st.columns([3, 3, 3])
                         
-                        with c_ok:
-                            if st.button("✅ Teslim Edildi", key=f"ok_{g_id}", use_container_width=True):
-                                st.session_state.delivery_status[g_id] = "success"
-                                st.rerun()
-                        with c_fail:
-                            if st.button("❌ İptal / Edilemedi", key=f"fail_{g_id}", use_container_width=True):
-                                st.session_state.delivery_status[g_id] = "failed"
-                                st.rerun()
-                        with c_sms:
-                            if st.button("📨 SMS Gönder", key=f"sms_{g_id}", use_container_width=True):
-                                with st.spinner("SMS Gönderiliyor..."):
-                                    basari, msj = netgsm_sms_gonder(tel_temiz, row['Alici_Ad'], row['Paket_No'], row['Urun_Adi'], gizli_kod)
-                                    if basari:
-                                        st.toast(f"✅ {row['Alici_Ad']} kişisine SMS gönderildi!")
+                        # 🔒 GÜVENLİ TESLİMAT KODU (OTP) EKRANI 
+                        if st.session_state.get(f"show_otp_{g_id}", False):
+                            st.markdown("🔒 **Güvenli Teslimat Onayı**")
+                            c_kod, c_onay, c_iptal = st.columns([4, 3, 3])
+                            with c_kod:
+                                girilen_kod = st.text_input("4 Haneli Kod:", key=f"inp_otp_{g_id}", label_visibility="collapsed", placeholder="Kodu Girin")
+                            with c_onay:
+                                if st.button("Kodu Doğrula", key=f"btn_otp_{g_id}", type="primary", use_container_width=True):
+                                    if girilen_kod == str(gizli_kod):
+                                        with st.spinner("Trendyol'a bildiriliyor..."):
+                                            basari, msj = trendyol_teslim_edildi_yap(TRENDYOL_SATICI_ID, TRENDYOL_API_KEY, TRENDYOL_API_SECRET, row['Paket_No'])
+                                            if basari:
+                                                st.session_state.delivery_status[g_id] = "success"
+                                                st.session_state[f"show_otp_{g_id}"] = False
+                                                st.toast("✅ Paket Başarıyla Teslim Edildi!")
+                                                st.rerun()
+                                            else:
+                                                st.error(msj)
                                     else:
-                                        st.error(f"❌ {msj}")
-                        
-                        c_sira, c_tasi, _ = st.columns([3, 3, 3])
-                        with c_sira:
-                            maks_durak = max(2, len(st.session_state.sirali_df) - 1)
-                            hedef_sira = st.number_input("Sıra No", min_value=2, max_value=maks_durak, value=durak_no, key=f"sira_{g_id}", label_visibility="collapsed")
-                        with c_tasi:
-                            if st.button("🔄 Taşı", key=f"move_{g_id}", type="primary", use_container_width=True):
-                                eski_idx = idx
-                                yeni_idx = hedef_sira - 1
-                                if eski_idx != yeni_idx:
-                                    row_to_move = st.session_state.sirali_df.iloc[eski_idx:eski_idx+1]
-                                    df_temp = st.session_state.sirali_df.drop(st.session_state.sirali_df.index[eski_idx])
-                                    df_top = df_temp.iloc[:yeni_idx]
-                                    df_bottom = df_temp.iloc[yeni_idx:]
-                                    st.session_state.sirali_df = pd.concat([df_top, row_to_move, df_bottom]).reset_index(drop=True)
-                                    buffer = io.BytesIO()
-                                    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-                                        st.session_state.sirali_df.to_excel(writer, index=False)
-                                    st.session_state.buffer = buffer
-                                    st.rerun() 
+                                        st.error("❌ Hatalı Kod!")
+                            with c_iptal:
+                                if st.button("Vazgeç", key=f"btn_vzg_{g_id}", use_container_width=True):
+                                    st.session_state[f"show_otp_{g_id}"] = False
+                                    st.rerun()
+                        else:
+                            # 📦 STANDART BUTONLAR (OTP GİZLİYKEN)
+                            c_ok, c_fail, c_sms = st.columns([3, 3, 3])
+                            with c_ok:
+                                if st.button("✅ Teslim Edildi", key=f"ok_{g_id}", use_container_width=True):
+                                    st.session_state[f"show_otp_{g_id}"] = True
+                                    st.rerun()
+                            with c_fail:
+                                if st.button("❌ İptal / Edilemedi", key=f"fail_{g_id}", use_container_width=True):
+                                    st.session_state.delivery_status[g_id] = "failed"
+                                    st.rerun()
+                            with c_sms:
+                                if st.button("📨 SMS Gönder", key=f"sms_{g_id}", use_container_width=True):
+                                    with st.spinner("SMS Gönderiliyor..."):
+                                        basari, msj = netgsm_sms_gonder(tel_temiz, row['Alici_Ad'], row['Paket_No'], row['Urun_Adi'], gizli_kod)
+                                        if basari: st.toast(f"✅ {row['Alici_Ad']} kişisine SMS gönderildi!")
+                                        else: st.error(f"❌ {msj}")
+                            
+                            c_sira, c_tasi, _ = st.columns([3, 3, 3])
+                            with c_sira:
+                                maks_durak = max(2, len(st.session_state.sirali_df) - 1)
+                                hedef_sira = st.number_input("Sıra No", min_value=2, max_value=maks_durak, value=durak_no, key=f"sira_{g_id}", label_visibility="collapsed")
+                            with c_tasi:
+                                if st.button("🔄 Taşı", key=f"move_{g_id}", type="primary", use_container_width=True):
+                                    eski_idx = idx
+                                    yeni_idx = hedef_sira - 1
+                                    if eski_idx != yeni_idx:
+                                        row_to_move = st.session_state.sirali_df.iloc[eski_idx:eski_idx+1]
+                                        df_temp = st.session_state.sirali_df.drop(st.session_state.sirali_df.index[eski_idx])
+                                        df_top = df_temp.iloc[:yeni_idx]
+                                        df_bottom = df_temp.iloc[yeni_idx:]
+                                        st.session_state.sirali_df = pd.concat([df_top, row_to_move, df_bottom]).reset_index(drop=True)
+                                        buffer = io.BytesIO()
+                                        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+                                            st.session_state.sirali_df.to_excel(writer, index=False)
+                                        st.session_state.buffer = buffer
+                                        st.rerun() 
                     else:
+                        # 1. veya Son duraksa
                         c_ok, c_fail, c_sms = st.columns([3, 3, 3])
                         with c_ok:
                             if st.button("✅ Teslim Edildi", key=f"ok_{g_id}", use_container_width=True):
@@ -780,10 +803,8 @@ with tab_harita:
                             if st.button("📨 SMS Gönder", key=f"sms_{g_id}", use_container_width=True):
                                 with st.spinner("SMS Gönderiliyor..."):
                                     basari, msj = netgsm_sms_gonder(tel_temiz, row['Alici_Ad'], row['Paket_No'], row['Urun_Adi'], gizli_kod)
-                                    if basari:
-                                        st.toast(f"✅ {row['Alici_Ad']} kişisine SMS gönderildi!")
-                                    else:
-                                        st.error(f"❌ {msj}")
+                                    if basari: st.toast(f"✅ {row['Alici_Ad']} kişisine SMS gönderildi!")
+                                    else: st.error(f"❌ {msj}")
 
                     st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
 
