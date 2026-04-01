@@ -30,8 +30,8 @@ NETGSM_BASLIK = "ERSANDIZAYN"
 # 🔑 TRENDYOL API AYARLARI (TESLİMAT İÇİN) 🔑
 # ==========================================
 TRENDYOL_SATICI_ID = "113341"
-TRENDYOL_API_KEY = "ZXbDKYXoLmvup2bdlCZ8"
-TRENDYOL_API_SECRET = "pwTNHm0dgSX6KORXBFIs"
+TRENDYOL_API_KEY = "AuxSwawTyWjTLGQsNw5A"
+TRENDYOL_API_SECRET = "J0Olyf7aJxGssbmzMtSm"
 
 # ==========================================
 # 🔒 SİSTEM GÜVENLİK AYARLARI 🔒
