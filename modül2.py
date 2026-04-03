@@ -243,7 +243,7 @@ def bolge_bul(adresler):
     if any(il in adresler_str for il in ["adana", "mersin", "içel", "icel"]): return "Adana-Mersin"
     if any(il in adresler_str for il in ["antalya", "alanya"]): return "Antalya"
     
-    return "Istanbul" # Hiçbiri eşleşmezse veya sadece İstanbul varsa
+    return "Istanbul" 
 
 # 🎨 EXCEL RENKLENDİRME FONKSİYONU
 def get_colored_excel(df, status_dict):
@@ -262,9 +262,9 @@ def get_colored_excel(df, status_dict):
     def apply_colors(row):
         g_id = row['Gizli_ID']
         st_val = status_dict.get(g_id, "pending")
-        if st_val == "success_trendyol": return ['background-color: #c6efce; color: #006100'] * len(row) # Yeşil
-        elif st_val == "success_local": return ['background-color: #bdd7ee; color: #002060'] * len(row) # Mavi
-        elif st_val == "failed": return ['background-color: #ffc7ce; color: #9c0006'] * len(row) # Kırmızı
+        if st_val == "success_trendyol": return ['background-color: #c6efce; color: #006100'] * len(row) 
+        elif st_val == "success_local": return ['background-color: #bdd7ee; color: #002060'] * len(row) 
+        elif st_val == "failed": return ['background-color: #ffc7ce; color: #9c0006'] * len(row) 
         else: return [''] * len(row)
 
     styled_df = df_export.style.apply(apply_colors, axis=1)
@@ -276,6 +276,47 @@ def get_colored_excel(df, status_dict):
         worksheet.set_column('A:Z', 15)
     
     return output.getvalue()
+
+# 🤖 OTOMATİK KAYDETME (AUTO-SAVE) FONKSİYONU
+def otomatik_kaydet():
+    if 'sirali_df' not in st.session_state or not st.session_state.harita_hazir:
+        return
+        
+    sirali_df = st.session_state.sirali_df
+    
+    # Başlangıç ve bitiş hariç adresleri al
+    musteri_adresleri = sirali_df[~sirali_df['Gizli_ID'].isin(['start_node', 'end_node'])]['Adres'].tolist()
+    bolge_adi = bolge_bul(musteri_adresleri)
+    
+    # Sadece müşterilerdeki sayaçları hesapla (Depoyu sayma)
+    teslim_edilen = 0
+    teslim_edilemeyen = 0
+    for g_id, status in st.session_state.delivery_status.items():
+        if g_id in ['start_node', 'end_node']: continue
+        if status in ["success_trendyol", "success_local"]: teslim_edilen += 1
+        elif status == "failed": teslim_edilemeyen += 1
+            
+    excel_data = get_colored_excel(sirali_df, st.session_state.delivery_status)
+    
+    # Rota ilk oluşturulduğu zamanı sabit tut ki her işlemde yeni dosya doğmasin
+    zaman = st.session_state.rota_olusturma_zamani
+    kullanici = st.session_state.kullanici
+    
+    yeni_dosya_adi = f"{bolge_adi}_{kullanici}_{zaman}_T{teslim_edilen}_H{teslim_edilemeyen}.xlsx"
+    yeni_dosya_yolu = f"gecmis_rotalar/{yeni_dosya_adi}"
+    
+    # Eğer isim değiştiyse (sayı arttıysa), eski kalabalığı sil
+    eski_dosya_yolu = st.session_state.get('aktif_dosya_yolu')
+    if eski_dosya_yolu and eski_dosya_yolu != yeni_dosya_yolu:
+        if os.path.exists(eski_dosya_yolu):
+            try: os.remove(eski_dosya_yolu)
+            except: pass
+            
+    # Yeni / Güncel dosyayı yaz
+    with open(yeni_dosya_yolu, "wb") as f:
+        f.write(excel_data)
+        
+    st.session_state.aktif_dosya_yolu = yeni_dosya_yolu
 
 
 st.title("🚚 Ersan Dizayn Rota Kontrol Merkezi")
@@ -687,8 +728,12 @@ with tab_harita:
                                     for g_id in sirali_df['Gizli_ID'].unique():
                                         st.session_state.delivery_status[g_id] = "pending"
                                         
-                                    st.session_state.dosya_adi = f"Ersan_Rota_{datetime.datetime.now().strftime('%H%M')}.xlsx"
+                                    # 🌟 İLK OTOMATİK KAYIT (T0_H0)
+                                    st.session_state.rota_olusturma_zamani = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')
+                                    st.session_state.aktif_dosya_yolu = None
                                     st.session_state.harita_hazir = True
+                                    otomatik_kaydet()
+                                    
                                     st.rerun() 
                                 else:
                                     st.error("Bu adresler arasında geçerli bir rota bulunamadı!")
@@ -738,24 +783,6 @@ with tab_harita:
                 
             folium.PolyLine(koordinat_listesi, color="#ff4b4b", weight=3, opacity=0.8).add_to(m)
             folium_static(m, width=1200, height=500)
-            
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("💾 Mevcut Rotayı Geçmişime Kaydet", type="primary", use_container_width=True):
-                musteri_adresleri = sirali_df[~sirali_df['Gizli_ID'].isin(['start_node', 'end_node'])]['Adres'].tolist()
-                bolge_adi = bolge_bul(musteri_adresleri)
-                
-                teslim_edilen = sum(1 for status in st.session_state.delivery_status.values() if status in ["success_trendyol", "success_local"])
-                teslim_edilemeyen = sum(1 for status in st.session_state.delivery_status.values() if status == "failed")
-                
-                excel_data = get_colored_excel(sirali_df, st.session_state.delivery_status)
-                zaman = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')
-                
-                dosya_adi = f"{bolge_adi}_{st.session_state.kullanici}_{zaman}_T{teslim_edilen}_H{teslim_edilemeyen}.xlsx"
-                dosya_yolu = f"gecmis_rotalar/{dosya_adi}"
-                
-                with open(dosya_yolu, "wb") as f:
-                    f.write(excel_data)
-                st.success("✅ Rota başarıyla hesaplandı ve 'Geçmiş Rotalarım' sekmesine eklendi!")
 
     # --- ALT KISIM: ŞOFÖR MODU (OTP + TRENDYOL ENTEGRASYONU) ---
     if st.session_state.harita_hazir:
@@ -844,6 +871,7 @@ with tab_harita:
                                             if basari:
                                                 st.session_state.delivery_status[g_id] = durum_sonucu
                                                 st.session_state[f"show_otp_{idx}_{g_id}"] = False
+                                                otomatik_kaydet() # 🌟 OTOMATİK KAYIT
                                                 st.toast("✅ Paket Başarıyla Teslim Edildi!")
                                                 st.rerun()
                                             else:
@@ -858,11 +886,12 @@ with tab_harita:
                                     st.rerun()
                                     
                             if st.session_state.get(f"trendyol_hata_{idx}_{g_id}", False):
-                                st.warning("Trendyol API bu siparişi teslim etmeyi reddetti. Sistemi devam ettirmek için lokal olarak teslim edebilirsiniz.")
+                                st.warning("Trendyol API bu siparişi reddetti. Sistemi devam ettirmek için lokal olarak teslim edebilirsiniz.")
                                 if st.button("⚠️ Trendyol'u Yoksay ve Sadece Uygulamada Teslim Et", key=f"force_{idx}_{g_id}", use_container_width=True):
                                     st.session_state.delivery_status[g_id] = "success_local" 
                                     st.session_state[f"show_otp_{idx}_{g_id}"] = False
                                     st.session_state[f"trendyol_hata_{idx}_{g_id}"] = False
+                                    otomatik_kaydet() # 🌟 OTOMATİK KAYIT
                                     st.rerun()
 
                         else:
@@ -874,6 +903,7 @@ with tab_harita:
                             with c_fail:
                                 if st.button("❌ İptal / Edilemedi", key=f"fail_{idx}_{g_id}", use_container_width=True):
                                     st.session_state.delivery_status[g_id] = "failed" 
+                                    otomatik_kaydet() # 🌟 OTOMATİK KAYIT
                                     st.rerun()
                             with c_sms:
                                 if st.button("📨 SMS Gönder", key=f"sms_{idx}_{g_id}", use_container_width=True):
@@ -911,6 +941,7 @@ with tab_harita:
                                             if basari:
                                                 st.session_state.delivery_status[g_id] = "success_local"
                                                 st.session_state[f"show_otp_{idx}_{g_id}"] = False
+                                                otomatik_kaydet() # 🌟 OTOMATİK KAYIT
                                                 st.toast("✅ Paket Başarıyla Teslim Edildi!")
                                                 st.rerun()
                                     else:
@@ -928,6 +959,7 @@ with tab_harita:
                             with c_fail:
                                 if st.button("❌ İptal / Edilemedi", key=f"fail_{idx}_{g_id}", use_container_width=True):
                                     st.session_state.delivery_status[g_id] = "failed"
+                                    otomatik_kaydet() # 🌟 OTOMATİK KAYIT
                                     st.rerun()
                             with c_sms:
                                 if st.button("📨 SMS Gönder", key=f"sms_{idx}_{g_id}", use_container_width=True):
@@ -975,6 +1007,7 @@ with tab_harita:
                     
                     if st.button("↩️ İşlemi Geri Al", key=f"undo_{idx}_{g_id}", use_container_width=True):
                         st.session_state.delivery_status[g_id] = "pending"
+                        otomatik_kaydet() # 🌟 OTOMATİK KAYIT
                         st.rerun()
                         
                     st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
@@ -999,7 +1032,7 @@ with tab_profil:
     gecmis_dosyalar = [f for f in os.listdir("gecmis_rotalar") if f.endswith(".xlsx") and (f"_{st.session_state.kullanici}_" in f or f.startswith(f"{st.session_state.kullanici}_"))]
     
     if len(gecmis_dosyalar) == 0:
-        st.warning("Henüz kaydedilmiş bir geçmiş rotan bulunmuyor. Harita sekmesinden 'Mevcut Rotayı Geçmişime Kaydet' butonunu kullanabilirsin.")
+        st.warning("Henüz kaydedilmiş bir geçmiş rotan bulunmuyor. Sen rotanı tamamladıkça sistem burayı otomatik dolduracak.")
     else:
         for dosya in sorted(gecmis_dosyalar, reverse=True):
             isim_temiz = dosya.replace(".xlsx", "")
@@ -1035,7 +1068,6 @@ with tab_profil:
             with col_down:
                 st.markdown("<br><br>", unsafe_allow_html=True) 
                 
-                # 🌟 YENİ: KİLİT AÇILINCA HEM İNDİR HEM SİL BUTONU ÇIKAR
                 if st.session_state.get(f"auth_{dosya}", False):
                     c_dl, c_del = st.columns([7, 3])
                     with c_dl:
