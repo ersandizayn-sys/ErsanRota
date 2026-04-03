@@ -739,21 +739,17 @@ with tab_harita:
             folium.PolyLine(koordinat_listesi, color="#ff4b4b", weight=3, opacity=0.8).add_to(m)
             folium_static(m, width=1200, height=500)
             
-            # 🌟 YENİ: HARİTA ALTINDA GEÇMİŞE KAYDETME BUTONU (Zekalı İsimlendirme ve Sayaç)
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("💾 Mevcut Rotayı Geçmişime Kaydet", type="primary", use_container_width=True):
-                # Bölge Tespiti
                 musteri_adresleri = sirali_df[~sirali_df['Gizli_ID'].isin(['start_node', 'end_node'])]['Adres'].tolist()
                 bolge_adi = bolge_bul(musteri_adresleri)
                 
-                # Sayaçlar
                 teslim_edilen = sum(1 for status in st.session_state.delivery_status.values() if status in ["success_trendyol", "success_local"])
                 teslim_edilemeyen = sum(1 for status in st.session_state.delivery_status.values() if status == "failed")
                 
                 excel_data = get_colored_excel(sirali_df, st.session_state.delivery_status)
                 zaman = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')
                 
-                # Örn: Izmir_sofor1_2026-04-03_14-30_T5_H1.xlsx
                 dosya_adi = f"{bolge_adi}_{st.session_state.kullanici}_{zaman}_T{teslim_edilen}_H{teslim_edilemeyen}.xlsx"
                 dosya_yolu = f"gecmis_rotalar/{dosya_adi}"
                 
@@ -862,7 +858,7 @@ with tab_harita:
                                     st.rerun()
                                     
                             if st.session_state.get(f"trendyol_hata_{idx}_{g_id}", False):
-                                st.warning("Trendyol API bu siparişi reddetti. Sistemi devam ettirmek için lokal olarak teslim edebilirsiniz.")
+                                st.warning("Trendyol API bu siparişi teslim etmeyi reddetti. Sistemi devam ettirmek için lokal olarak teslim edebilirsiniz.")
                                 if st.button("⚠️ Trendyol'u Yoksay ve Sadece Uygulamada Teslim Et", key=f"force_{idx}_{g_id}", use_container_width=True):
                                     st.session_state.delivery_status[g_id] = "success_local" 
                                     st.session_state[f"show_otp_{idx}_{g_id}"] = False
@@ -902,7 +898,6 @@ with tab_harita:
                                         st.session_state.sirali_df = pd.concat([df_top, row_to_move, df_bottom]).reset_index(drop=True)
                                         st.rerun() 
                     else:
-                        # 1. veya Son duraksa
                         if st.session_state.get(f"show_otp_{idx}_{g_id}", False):
                             st.info("🔒 **Güvenli Teslimat:** Müşteriye SMS ile giden 4 haneli kodu girin.")
                             c_kod, c_onay, c_vazgec = st.columns([4, 4, 3])
@@ -999,7 +994,7 @@ with tab_profil:
             
     st.markdown("---")
     st.markdown("#### 📜 Geçmiş Rotalarım (Analizli)")
-    st.info("💡 **Bilgi:** Rotaları indirebilmek için Admin yetkisi gereklidir. Raporlamalar otomatik hesaplanmıştır.")
+    st.info("💡 **Bilgi:** Rotaları indirebilmek veya SİLEBİLMEK için Admin yetkisi gereklidir. Raporlamalar otomatik hesaplanmıştır.")
     
     gecmis_dosyalar = [f for f in os.listdir("gecmis_rotalar") if f.endswith(".xlsx") and (f"_{st.session_state.kullanici}_" in f or f.startswith(f"{st.session_state.kullanici}_"))]
     
@@ -1007,11 +1002,9 @@ with tab_profil:
         st.warning("Henüz kaydedilmiş bir geçmiş rotan bulunmuyor. Harita sekmesinden 'Mevcut Rotayı Geçmişime Kaydet' butonunu kullanabilirsin.")
     else:
         for dosya in sorted(gecmis_dosyalar, reverse=True):
-            # Dosya adından verileri ayrıştır (Örn: Izmir_sofor1_2026-04-03_14-30_T5_H1.xlsx)
             isim_temiz = dosya.replace(".xlsx", "")
             parcalar = isim_temiz.split("_")
             
-            # Varsayılanlar (Eski format dosyalar çökerse diye)
             bolge_gosterim = "Bilinmiyor"
             tarih_gosterim = ""
             teslim_gosterim = "?"
@@ -1023,10 +1016,8 @@ with tab_profil:
                 teslim_gosterim = parcalar[4].replace("T", "")
                 hata_gosterim = parcalar[5].replace("H", "")
             else:
-                # Eski format (bolge ve istatistik yoksa)
                 tarih_gosterim = f"{parcalar[1]} {parcalar[2].replace('-', ':')}"
             
-            # 🌟 YENİ ŞIK KART TASARIMI
             col_file, col_down = st.columns([3, 2])
             with col_file:
                 rapor_html = f"""
@@ -1042,10 +1033,22 @@ with tab_profil:
                 st.markdown(rapor_html, unsafe_allow_html=True)
             
             with col_down:
-                st.markdown("<br><br>", unsafe_allow_html=True) # Kartla hizalamak için boşluk
+                st.markdown("<br><br>", unsafe_allow_html=True) 
+                
+                # 🌟 YENİ: KİLİT AÇILINCA HEM İNDİR HEM SİL BUTONU ÇIKAR
                 if st.session_state.get(f"auth_{dosya}", False):
-                    with open(f"gecmis_rotalar/{dosya}", "rb") as f:
-                        st.download_button("📥 Kilidi Açıldı - İndir", data=f.read(), file_name=dosya, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key=f"dl_{dosya}", use_container_width=True)
+                    c_dl, c_del = st.columns([7, 3])
+                    with c_dl:
+                        with open(f"gecmis_rotalar/{dosya}", "rb") as f:
+                            st.download_button("📥 İndir", data=f.read(), file_name=dosya, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key=f"dl_{dosya}", use_container_width=True)
+                    with c_del:
+                        if st.button("🗑️ Sil", key=f"del_{dosya}", use_container_width=True):
+                            try:
+                                os.remove(f"gecmis_rotalar/{dosya}")
+                                st.toast("✅ Dosya başarıyla silindi!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Silinemedi: {e}")
                 else:
                     col_p, col_b = st.columns([2, 1])
                     with col_p:
