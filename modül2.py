@@ -9,7 +9,7 @@ import re
 import requests
 import random
 import base64
-import os # YENİ: Geçmiş rotaları kaydetmek için klasör yönetimi
+import os
 from streamlit_folium import folium_static
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
@@ -42,7 +42,6 @@ ADMIN_SIFRE = "1453" # Excel indirmek için gereken şifre
 # ==========================================
 # 👥 ŞOFÖR / KULLANICI HESAPLARI 👥
 # ==========================================
-# Sol taraf Kullanıcı Adı, Sağ taraf Şifredir. İstediğin gibi değiştirebilirsin.
 SOFORLER = {
     "admin": "ersan123",
     "sofor1": "1111",
@@ -203,7 +202,7 @@ def netgsm_sms_gonder(tel, musteri, paket, urun, kod):
         else: return False, f"NetGSM Hata Kodu: {r.text}"
     except Exception as e: return False, f"Sistem Hatası: {str(e)}"
 
-# 🛒 TRENDYOL API TESLİM EDİLDİ FONKSİYONU
+# 🛒 TRENDYOL API TESLİM EDİLDİ FONKSİYONU (2 AŞAMALI GERÇEK MANTIK)
 def trendyol_teslim_edildi_yap(satici_id, api_key, api_secret, paket_no, siparis_no):
     if siparis_no == "-" or siparis_no == "":
         return False, "Sipariş numarası yok! Lütfen lokal teslimata tıklayın."
@@ -220,17 +219,21 @@ def trendyol_teslim_edildi_yap(satici_id, api_key, api_secret, paket_no, siparis
         if req_sorgu.status_code == 200:
             data = req_sorgu.json()
             content = data.get("content", [])
-            if content: gercek_paket_id = content[0].get("id") or content[0].get("shipmentPackageId")
+            if content:
+                gercek_paket_id = content[0].get("id") or content[0].get("shipmentPackageId")
         
         sadece_id = str(gercek_paket_id) if gercek_paket_id else str(paket_no).strip()
         
         url = f"https://apigw.trendyol.com/integration/order/sellers/{satici_id}/shipment-packages/{sadece_id}/manual-deliver"
         r = requests.put(url, headers=headers, json={}, timeout=15)
         
-        if r.status_code in [200, 201, 204]: return True, "Trendyol'da başarıyla Teslim Edildi!"
-        else: return False, f"Trendyol Hata: {r.status_code} - {r.text}"
+        if r.status_code in [200, 201, 204]: 
+            return True, "Trendyol'da başarıyla Teslim Edildi!"
+        else: 
+            return False, f"Trendyol Hata: {r.status_code} - {r.text}"
             
-    except Exception as e: return False, f"Bağlantı Hatası: {str(e)}"
+    except Exception as e: 
+        return False, f"Bağlantı Hatası: {str(e)}"
 
 # 🎨 EXCEL RENKLENDİRME FONKSİYONU
 def get_colored_excel(df, status_dict):
@@ -284,7 +287,6 @@ if 'df_validated' not in st.session_state:
 if 'manual_search_results' not in st.session_state: st.session_state.manual_search_results = []
 if 'manual_selected' not in st.session_state: st.session_state.manual_selected = None
 
-# YENİ EKLENDİ: PROFİL SEKMESİ
 tab_kurulum, tab_harita, tab_profil = st.tabs(["📂 1. Veri Yükleme", "🗺️ 2. Planlama ve Harita", "👤 3. Profil ve Geçmiş"])
 
 # --- SEKME 1: 📂 VERİ YÜKLEME VE ADRES DOĞRULAMA ---
@@ -514,7 +516,7 @@ with tab_harita:
                 secenek_mapping = {}
                 
                 if st.session_state.harita_hazir and 'sirali_df' in st.session_state:
-                    durak_map = {r['Gizli_ID']: i + 1 for i, r in st.session_state.sirali_df.iterrows() if pd.notna(r.get('Gizli_ID')) and r.get('Gizli_ID') != '-'}
+                    durak_map = {r['Gizli_ID']: i + 1 for i, r in st.session_state.sirali_df.iterrows() if pd.notna(r.get('Gizli_ID')) and r.get('Gizli_ID') not in ['start_node', 'end_node']}
                     for idx, row in df_excel.iterrows():
                         gizli_id = row['Gizli_ID']
                         if gizli_id in durak_map: 
@@ -577,7 +579,8 @@ with tab_harita:
                                     elif start_tip == "gps": s_ad, s_adres = "📍 ŞOFÖR (GPS)", f"{loc['latitude']},{loc['longitude']}"
                                     else: s_ad, s_adres = "🟢 ÖZEL BAŞLANGIÇ", ozel_baslangic
                                         
-                                    nodes.append({'Siparis_No': 'START', 'Paket_No': '-', 'Urun_Adi': '-', 'Adet': '-', 'Gizli_ID': '-', 'Alici_Ad': s_ad, 'Adres': s_adres, 'Telefon': '-', 'Teslimat_Kodu': '-'})
+                                    # 🌟 BAŞLANGIÇ NOKTASINA BENZERSİZ ID
+                                    nodes.append({'Siparis_No': 'START', 'Paket_No': '-', 'Urun_Adi': '-', 'Adet': '-', 'Gizli_ID': 'start_node', 'Alici_Ad': s_ad, 'Adres': s_adres, 'Telefon': '-', 'Teslimat_Kodu': '-'})
                                     start_node_index = 0
 
                                 if not ring_rotasi and end_tip != "musteri":
@@ -585,7 +588,8 @@ with tab_harita:
                                     elif end_tip == "gps": e_ad, e_adres = "📍 ŞOFÖR (GPS)", f"{loc['latitude']},{loc['longitude']}"
                                     else: e_ad, e_adres = "🔴 ÖZEL BİTİŞ", ozel_bitis
                                         
-                                    nodes.append({'Siparis_No': 'END', 'Paket_No': '-', 'Urun_Adi': '-', 'Adet': '-', 'Gizli_ID': '-', 'Alici_Ad': e_ad, 'Adres': e_adres, 'Telefon': '-', 'Teslimat_Kodu': '-'})
+                                    # 🌟 BİTİŞ NOKTASINA BENZERSİZ ID
+                                    nodes.append({'Siparis_No': 'END', 'Paket_No': '-', 'Urun_Adi': '-', 'Adet': '-', 'Gizli_ID': 'end_node', 'Alici_Ad': e_ad, 'Adres': e_adres, 'Telefon': '-', 'Teslimat_Kodu': '-'})
                                     end_node_index = len(nodes) - 1
 
                                 musteri_offset = len(nodes)
@@ -602,7 +606,8 @@ with tab_harita:
                                     lat, lon = 0.0, 0.0
                                     gizli_id = df_all['Gizli_ID'].iloc[i]
                                     
-                                    if gizli_id == '-':
+                                    # 🌟 GİZLİ ID KONTROLÜ
+                                    if gizli_id in ['start_node', 'end_node']:
                                         if "," in str(adres) and str(adres).replace(',','').replace('.','').replace('-','').isdigit():
                                             l1, l2 = str(adres).split(",")
                                             lat, lon = float(l1), float(l2)
@@ -692,7 +697,7 @@ with tab_harita:
             pending_count = 0
             total_customers = 0
             for idx, row in st.session_state.sirali_df.iterrows():
-                if row['Gizli_ID'] != '-':
+                if row['Gizli_ID'] not in ['start_node', 'end_node']:
                     total_customers += 1
                     if st.session_state.delivery_status.get(row['Gizli_ID'], "pending") == "pending": pending_count += 1
                         
@@ -713,7 +718,9 @@ with tab_harita:
                 koordinat_listesi.append((lat, lon))
                 status = st.session_state.delivery_status.get(g_id, "pending")
                 
-                if g_id == '-': renk_hex = '#4caf50' if idx == 0 else '#ff5252' 
+                # 🌟 HARİTA PİN RENKLERİ
+                if g_id in ['start_node', 'end_node']: 
+                    renk_hex = '#4caf50' if g_id == 'start_node' else '#ff5252' 
                 else: 
                     if status == "success_trendyol": renk_hex = '#4caf50' 
                     elif status == "success_local": renk_hex = '#2196f3' 
@@ -726,7 +733,6 @@ with tab_harita:
             folium.PolyLine(koordinat_listesi, color="#ff4b4b", weight=3, opacity=0.8).add_to(m)
             folium_static(m, width=1200, height=500)
             
-            # 🌟 YENİ: HARİTA ALTINDA GEÇMİŞE KAYDETME BUTONU
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("💾 Mevcut Rotayı Geçmişime Kaydet", type="primary", use_container_width=True):
                 excel_data = get_colored_excel(sirali_df, st.session_state.delivery_status)
@@ -746,7 +752,8 @@ with tab_harita:
             
             for idx, row in st.session_state.sirali_df.iterrows():
                 g_id = row['Gizli_ID']
-                if g_id == '-': pending_orders.append((idx, row, 'start_end'))
+                if g_id in ['start_node', 'end_node']: 
+                    pending_orders.append((idx, row, 'start_end'))
                 else:
                     status = st.session_state.delivery_status.get(g_id, "pending")
                     if status == "pending": pending_orders.append((idx, row, 'pending'))
@@ -770,7 +777,7 @@ with tab_harita:
                 else: border_color, durak_etiketi = "#ff9800", "📦 TESLİMAT BEKLİYOR" 
                 
                 urun_html = ""
-                if g_id != '-':
+                if g_id not in ['start_node', 'end_node']:
                     urun_html = f"""<div style="text-align: right; background: rgba(255, 193, 7, 0.1); padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(255, 193, 7, 0.3); flex-shrink: 0; margin-left: 10px;">
 <div style="font-size: 22px; font-weight: 900; color: #ffc107; line-height: 1;">{row['Adet']} ADET</div>
 <div style="font-size: 13px; font-weight: 700; color: #fffde7; margin-top: 4px; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{row['Urun_Adi']}">{row['Urun_Adi']}</div>
@@ -798,21 +805,22 @@ with tab_harita:
 </div>"""
                 st.markdown(kart_html, unsafe_allow_html=True)
                 
+                # 🌟 AKSİYON BUTONLARI (Kilitlenme hatası IDX eklenerek çözüldü)
                 if status == 'pending':
                     if 1 < durak_no < len(st.session_state.sirali_df):
                         
-                        if st.session_state.get(f"show_otp_{g_id}", False):
+                        if st.session_state.get(f"show_otp_{idx}_{g_id}", False):
                             st.info("🔒 **Güvenli Teslimat:** Müşteriye SMS ile giden 4 haneli kodu girin.")
                             c_kod, c_onay, c_vazgec = st.columns([4, 4, 3])
                             with c_kod:
-                                girilen_kod = st.text_input("Kod:", key=f"inp_{g_id}", placeholder="Örn: 1234", label_visibility="collapsed")
+                                girilen_kod = st.text_input("Kod:", key=f"inp_{idx}_{g_id}", placeholder="Örn: 1234", label_visibility="collapsed")
                             with c_onay:
-                                if st.button("✔️ Doğrula", key=f"dogrula_{g_id}", type="primary", use_container_width=True):
+                                if st.button("✔️ Doğrula", key=f"dogrula_{idx}_{g_id}", type="primary", use_container_width=True):
                                     if girilen_kod == str(gizli_kod):
                                         with st.spinner("İşleniyor..."):
                                             sip_no = str(row['Siparis_No']).strip()
                                             
-                                            if sip_no.startswith('2') or sip_no.startswith('4') or g_id == '-':
+                                            if sip_no.startswith('2') or sip_no.startswith('4') or g_id in ['start_node', 'end_node']:
                                                 basari, msj = True, "Lokal Teslimat"
                                                 durum_sonucu = "success_local"
                                             else:
@@ -821,40 +829,40 @@ with tab_harita:
                                                 
                                             if basari:
                                                 st.session_state.delivery_status[g_id] = durum_sonucu
-                                                st.session_state[f"show_otp_{g_id}"] = False
+                                                st.session_state[f"show_otp_{idx}_{g_id}"] = False
                                                 st.toast("✅ Paket Başarıyla Teslim Edildi!")
                                                 st.rerun()
                                             else:
                                                 st.error(f"❌ TRENDYOL REDDETTİ:\n\n{msj}")
-                                                st.session_state[f"trendyol_hata_{g_id}"] = True
+                                                st.session_state[f"trendyol_hata_{idx}_{g_id}"] = True
                                     else:
                                         st.error("❌ Hatalı Kod! Lütfen tekrar deneyin.")
                             with c_vazgec:
-                                if st.button("⬅️ Vazgeç", key=f"vzg_{g_id}", use_container_width=True):
-                                    st.session_state[f"show_otp_{g_id}"] = False
-                                    st.session_state[f"trendyol_hata_{g_id}"] = False
+                                if st.button("⬅️ Vazgeç", key=f"vzg_{idx}_{g_id}", use_container_width=True):
+                                    st.session_state[f"show_otp_{idx}_{g_id}"] = False
+                                    st.session_state[f"trendyol_hata_{idx}_{g_id}"] = False
                                     st.rerun()
                                     
-                            if st.session_state.get(f"trendyol_hata_{g_id}", False):
-                                st.warning("Trendyol API bu siparişi teslim etmeyi reddetti. Sistemi devam ettirmek için lokal olarak teslim edebilirsiniz.")
-                                if st.button("⚠️ Trendyol'u Yoksay ve Sadece Uygulamada Teslim Et", key=f"force_{g_id}", use_container_width=True):
+                            if st.session_state.get(f"trendyol_hata_{idx}_{g_id}", False):
+                                st.warning("Trendyol API bu siparişi reddetti. Sistemi devam ettirmek için lokal teslim edebilirsiniz.")
+                                if st.button("⚠️ Trendyol'u Yoksay ve Sadece Uygulamada Teslim Et", key=f"force_{idx}_{g_id}", use_container_width=True):
                                     st.session_state.delivery_status[g_id] = "success_local" 
-                                    st.session_state[f"show_otp_{g_id}"] = False
-                                    st.session_state[f"trendyol_hata_{g_id}"] = False
+                                    st.session_state[f"show_otp_{idx}_{g_id}"] = False
+                                    st.session_state[f"trendyol_hata_{idx}_{g_id}"] = False
                                     st.rerun()
 
                         else:
                             c_ok, c_fail, c_sms = st.columns([3, 3, 3])
                             with c_ok:
-                                if st.button("✅ Teslim Edildi", key=f"ok_{g_id}", use_container_width=True):
-                                    st.session_state[f"show_otp_{g_id}"] = True
+                                if st.button("✅ Teslim Edildi", key=f"ok_{idx}_{g_id}", use_container_width=True):
+                                    st.session_state[f"show_otp_{idx}_{g_id}"] = True
                                     st.rerun()
                             with c_fail:
-                                if st.button("❌ İptal / Edilemedi", key=f"fail_{g_id}", use_container_width=True):
+                                if st.button("❌ İptal / Edilemedi", key=f"fail_{idx}_{g_id}", use_container_width=True):
                                     st.session_state.delivery_status[g_id] = "failed" 
                                     st.rerun()
                             with c_sms:
-                                if st.button("📨 SMS Gönder", key=f"sms_{g_id}", use_container_width=True):
+                                if st.button("📨 SMS Gönder", key=f"sms_{idx}_{g_id}", use_container_width=True):
                                     with st.spinner("SMS Gönderiliyor..."):
                                         basari, msj = netgsm_sms_gonder(tel_temiz, row['Alici_Ad'], row['Paket_No'], row['Urun_Adi'], gizli_kod)
                                         if basari: st.toast(f"✅ {row['Alici_Ad']} kişisine SMS gönderildi!")
@@ -863,9 +871,9 @@ with tab_harita:
                             c_sira, c_tasi, _ = st.columns([3, 3, 3])
                             with c_sira:
                                 maks_durak = max(2, len(st.session_state.sirali_df) - 1)
-                                hedef_sira = st.number_input("Sıra No", min_value=2, max_value=maks_durak, value=durak_no, key=f"sira_{g_id}", label_visibility="collapsed")
+                                hedef_sira = st.number_input("Sıra No", min_value=2, max_value=maks_durak, value=durak_no, key=f"sira_{idx}_{g_id}", label_visibility="collapsed")
                             with c_tasi:
-                                if st.button("🔄 Taşı", key=f"move_{g_id}", type="primary", use_container_width=True):
+                                if st.button("🔄 Taşı", key=f"move_{idx}_{g_id}", type="primary", use_container_width=True):
                                     eski_idx = idx
                                     yeni_idx = hedef_sira - 1
                                     if eski_idx != yeni_idx:
@@ -876,21 +884,65 @@ with tab_harita:
                                         st.session_state.sirali_df = pd.concat([df_top, row_to_move, df_bottom]).reset_index(drop=True)
                                         st.rerun() 
                     else:
-                        c_ok, c_fail, c_sms = st.columns([3, 3, 3])
-                        with c_ok:
-                            if st.button("✅ Teslim Edildi", key=f"ok_{g_id}", use_container_width=True):
-                                st.session_state[f"show_otp_{g_id}"] = True
-                                st.rerun()
-                        with c_fail:
-                            if st.button("❌ İptal / Edilemedi", key=f"fail_{g_id}", use_container_width=True):
-                                st.session_state.delivery_status[g_id] = "failed"
-                                st.rerun()
-                        with c_sms:
-                            if st.button("📨 SMS Gönder", key=f"sms_{g_id}", use_container_width=True):
-                                with st.spinner("SMS Gönderiliyor..."):
-                                    basari, msj = netgsm_sms_gonder(tel_temiz, row['Alici_Ad'], row['Paket_No'], row['Urun_Adi'], gizli_kod)
-                                    if basari: st.toast(f"✅ {row['Alici_Ad']} kişisine SMS gönderildi!")
-                                    else: st.error(f"❌ {msj}")
+                        # 1. veya Son duraksa (Sadece Teslimat/İptal/SMS)
+                        if st.session_state.get(f"show_otp_{idx}_{g_id}", False):
+                            st.info("🔒 **Güvenli Teslimat:** Müşteriye SMS ile giden 4 haneli kodu girin.")
+                            c_kod, c_onay, c_vazgec = st.columns([4, 4, 3])
+                            with c_kod:
+                                girilen_kod = st.text_input("Kod:", key=f"inp_{idx}_{g_id}", placeholder="Örn: 1234", label_visibility="collapsed")
+                            with c_onay:
+                                if st.button("✔️ Doğrula", key=f"dogrula_{idx}_{g_id}", type="primary", use_container_width=True):
+                                    if girilen_kod == str(gizli_kod):
+                                        with st.spinner("İşleniyor..."):
+                                            sip_no = str(row['Siparis_No']).strip()
+                                            
+                                            if sip_no.startswith('2') or sip_no.startswith('4') or g_id in ['start_node', 'end_node']:
+                                                basari, msj = True, "Lokal Teslimat"
+                                                durum_sonucu = "success_local"
+                                            else:
+                                                basari, msj = trendyol_teslim_edildi_yap(TRENDYOL_SATICI_ID, TRENDYOL_API_KEY, TRENDYOL_API_SECRET, row['Paket_No'], sip_no)
+                                                durum_sonucu = "success_trendyol"
+                                                
+                                            if basari:
+                                                st.session_state.delivery_status[g_id] = durum_sonucu
+                                                st.session_state[f"show_otp_{idx}_{g_id}"] = False
+                                                st.toast("✅ Paket Başarıyla Teslim Edildi!")
+                                                st.rerun()
+                                            else:
+                                                st.error(f"❌ TRENDYOL REDDETTİ:\n\n{msj}")
+                                                st.session_state[f"trendyol_hata_{idx}_{g_id}"] = True
+                                    else:
+                                        st.error("❌ Hatalı Kod! Lütfen tekrar deneyin.")
+                            with c_vazgec:
+                                if st.button("⬅️ Vazgeç", key=f"vzg_{idx}_{g_id}", use_container_width=True):
+                                    st.session_state[f"show_otp_{idx}_{g_id}"] = False
+                                    st.session_state[f"trendyol_hata_{idx}_{g_id}"] = False
+                                    st.rerun()
+                                    
+                            if st.session_state.get(f"trendyol_hata_{idx}_{g_id}", False):
+                                st.warning("Trendyol API bu siparişi reddetti. Sistemi devam ettirmek için lokal teslim edebilirsiniz.")
+                                if st.button("⚠️ Trendyol'u Yoksay ve Sadece Uygulamada Teslim Et", key=f"force_{idx}_{g_id}", use_container_width=True):
+                                    st.session_state.delivery_status[g_id] = "success_local" 
+                                    st.session_state[f"show_otp_{idx}_{g_id}"] = False
+                                    st.session_state[f"trendyol_hata_{idx}_{g_id}"] = False
+                                    st.rerun()
+
+                        else:
+                            c_ok, c_fail, c_sms = st.columns([3, 3, 3])
+                            with c_ok:
+                                if st.button("✅ Teslim Edildi", key=f"ok_{idx}_{g_id}", use_container_width=True):
+                                    st.session_state[f"show_otp_{idx}_{g_id}"] = True
+                                    st.rerun()
+                            with c_fail:
+                                if st.button("❌ İptal / Edilemedi", key=f"fail_{idx}_{g_id}", use_container_width=True):
+                                    st.session_state.delivery_status[g_id] = "failed"
+                                    st.rerun()
+                            with c_sms:
+                                if st.button("📨 SMS Gönder", key=f"sms_{idx}_{g_id}", use_container_width=True):
+                                    with st.spinner("SMS Gönderiliyor..."):
+                                        basari, msj = netgsm_sms_gonder(tel_temiz, row['Alici_Ad'], row['Paket_No'], row['Urun_Adi'], gizli_kod)
+                                        if basari: st.toast(f"✅ {row['Alici_Ad']} kişisine SMS gönderildi!")
+                                        else: st.error(f"❌ {msj}")
 
                     st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
 
@@ -929,7 +981,7 @@ with tab_harita:
 </div>"""
                     st.markdown(kart_html_comp, unsafe_allow_html=True)
                     
-                    if st.button("↩️ İşlemi Geri Al", key=f"undo_{g_id}", use_container_width=True):
+                    if st.button("↩️ İşlemi Geri Al", key=f"undo_{idx}_{g_id}", use_container_width=True):
                         st.session_state.delivery_status[g_id] = "pending"
                         st.rerun()
                         
@@ -944,7 +996,6 @@ with tab_profil:
     col_cikis, _ = st.columns([1, 4])
     with col_cikis:
         if st.button("🚪 Sistemden Çıkış Yap", type="primary", use_container_width=True):
-            # Oturumdaki tüm verileri temizle ki yeni giren şoför eskinin datasını görmesin
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
             st.rerun()
@@ -953,14 +1004,12 @@ with tab_profil:
     st.markdown("#### 📜 Geçmiş Rotalarım")
     st.info("💡 **Bilgi:** Rotaları indirebilmek için Admin yetkisi gereklidir. İndirme işlemi güvenlik sebebiyle şifrelenmiştir.")
     
-    # Bu şoföre ait dosyaları bul
     gecmis_dosyalar = [f for f in os.listdir("gecmis_rotalar") if f.startswith(f"{st.session_state.kullanici}_")]
     
     if len(gecmis_dosyalar) == 0:
         st.warning("Henüz kaydedilmiş bir geçmiş rotan bulunmuyor. Harita sekmesinden 'Geçmişime Kaydet' butonunu kullanabilirsin.")
     else:
         for dosya in sorted(gecmis_dosyalar, reverse=True):
-            # Dosya isminden tarihi ayrıştır (sofor1_2026-04-03_14-30.xlsx)
             tarih_kismi = dosya.replace(f"{st.session_state.kullanici}_", "").replace(".xlsx", "")
             
             col_file, col_down = st.columns([3, 2])
@@ -968,7 +1017,6 @@ with tab_profil:
                 st.markdown(f"<div style='padding:15px; background-color:#2b2b36; border-radius:8px;'>📁 <b>Rota Kaydı:</b> <span style='color:#ffc107;'>{tarih_kismi}</span></div>", unsafe_allow_html=True)
             with col_down:
                 st.markdown("<br>", unsafe_allow_html=True)
-                # Geçmiş dosyasını indirmek için Admin Şifresi Koruması
                 if st.session_state.get(f"auth_{dosya}", False):
                     with open(f"gecmis_rotalar/{dosya}", "rb") as f:
                         st.download_button("📥 Kilidi Açıldı - İndir", data=f.read(), file_name=dosya, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key=f"dl_{dosya}", use_container_width=True)
