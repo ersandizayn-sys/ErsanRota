@@ -150,37 +150,47 @@ if st.session_state.kullanici is None:
                     st.rerun()
                 else:
                     st.error("❌ Kullanıcı adı veya şifre hatalı!")
-    st.stop() # Giriş yapılmadıysa uygulamanın kalanını çalıştırma!
+    st.stop()
 
-# 🧠 YAPAY ZEKA: ÇOKLU ARAMA MOTORU
+# 🧠 YAPAY ZEKA: ÇİFT MOTORLU ARAMA MOTORU (Google Maps + OSM)
 @st.cache_data(show_spinner=False)
 def get_candidates(api_key, address):
     gmaps = googlemaps.Client(key=api_key)
     candidates = []
     seen_addresses = set()
 
-    def add_result(res_list):
+    def add_result(res_list, kaynak="📍"):
         for r in res_list:
             addr = r.get('formatted_address', '')
             if addr and addr not in seen_addresses:
                 seen_addresses.add(addr)
-                candidates.append({"label": addr, "lat": r['geometry']['location']['lat'], "lng": r['geometry']['location']['lng']})
+                candidates.append({"label": f"{kaynak} {addr}", "lat": r['geometry']['location']['lat'], "lng": r['geometry']['location']['lng']})
 
-    try: add_result(gmaps.geocode(f"{address}, Türkiye"))
+    # 1. MOTOR: GOOGLE MAPS
+    try: add_result(gmaps.geocode(f"{address}, Türkiye"), "📍")
     except: pass
 
     if len(candidates) < 4:
         try:
             temiz_adres = re.sub(r'(?i)\b(no|numara|d|daire|kat|blok|iç kapı)\b\s*[:.]?\s*\d*[/a-zA-Z\d-]*', '', address)
             temiz_adres = temiz_adres.replace("/", " ").replace("-", " ")
-            if temiz_adres.strip() != address.strip(): add_result(gmaps.geocode(f"{temiz_adres.strip()}, Türkiye"))
+            if temiz_adres.strip() != address.strip(): add_result(gmaps.geocode(f"{temiz_adres.strip()}, Türkiye"), "📍")
         except: pass
-    
-    if len(candidates) < 4:
-        try:
-            kelimeler = address.replace(',', ' ').split()
-            if len(kelimeler) > 3: add_result(gmaps.geocode(f"{' '.join(kelimeler[-4:])}, Türkiye"))
-        except: pass
+
+    # 2. MOTOR: OPENSTREETMAP (Ücretsiz / Detaylı Anadolu Haritası)
+    try:
+        headers = {'User-Agent': 'ErsanDizaynLojistik/1.0'}
+        osm_url = "https://nominatim.openstreetmap.org/search"
+        params = {'q': f"{address}, Türkiye", 'format': 'json', 'limit': 3}
+        response = requests.get(osm_url, headers=headers, params=params, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            for item in data:
+                addr = item.get('display_name', '')
+                if addr and addr not in seen_addresses:
+                    seen_addresses.add(addr)
+                    candidates.append({"label": f"🌍 (OSM) {addr}", "lat": float(item['lat']), "lng": float(item['lon'])})
+    except: pass
 
     return candidates
 
@@ -284,11 +294,9 @@ def otomatik_kaydet():
         
     sirali_df = st.session_state.sirali_df
     
-    # Başlangıç ve bitiş hariç adresleri al
     musteri_adresleri = sirali_df[~sirali_df['Gizli_ID'].isin(['start_node', 'end_node'])]['Adres'].tolist()
     bolge_adi = bolge_bul(musteri_adresleri)
     
-    # Sadece müşterilerdeki sayaçları hesapla (Depoyu sayma)
     teslim_edilen = 0
     teslim_edilemeyen = 0
     for g_id, status in st.session_state.delivery_status.items():
@@ -298,21 +306,18 @@ def otomatik_kaydet():
             
     excel_data = get_colored_excel(sirali_df, st.session_state.delivery_status)
     
-    # Rota ilk oluşturulduğu zamanı sabit tut ki her işlemde yeni dosya doğmasin
     zaman = st.session_state.rota_olusturma_zamani
     kullanici = st.session_state.kullanici
     
     yeni_dosya_adi = f"{bolge_adi}_{kullanici}_{zaman}_T{teslim_edilen}_H{teslim_edilemeyen}.xlsx"
     yeni_dosya_yolu = f"gecmis_rotalar/{yeni_dosya_adi}"
     
-    # Eğer isim değiştiyse (sayı arttıysa), eski kalabalığı sil
     eski_dosya_yolu = st.session_state.get('aktif_dosya_yolu')
     if eski_dosya_yolu and eski_dosya_yolu != yeni_dosya_yolu:
         if os.path.exists(eski_dosya_yolu):
             try: os.remove(eski_dosya_yolu)
             except: pass
             
-    # Yeni / Güncel dosyayı yaz
     with open(yeni_dosya_yolu, "wb") as f:
         f.write(excel_data)
         
@@ -410,12 +415,12 @@ with tab_kurulum:
                     st.session_state.custom_search = yeni_arama
                     st.rerun()
 
-                with st.spinner("Google Haritalar'dan tüm alternatifler çekiliyor..."):
+                with st.spinner("Motorlar Arıyor..."):
                     options = get_candidates(GOOGLE_MAPS_API_KEY, st.session_state.custom_search)
 
                 st.markdown("👇 **Haritaya pin atılacak konumu TIKLAYARAK seçin:**")
                 for i, opt in enumerate(options):
-                    if st.button(f"📍 {opt['label']}", key=f"btn_opt_{current}_{i}", use_container_width=True):
+                    if st.button(f"{opt['label']}", key=f"btn_opt_{current}_{i}", use_container_width=True):
                         st.session_state.temp_selection = opt['label']
                         st.session_state.temp_lat = opt['lat']
                         st.session_state.temp_lng = opt['lng']
@@ -510,7 +515,7 @@ with tab_harita:
             
             if st.session_state.get('manual_search_results') and not st.session_state.get('manual_selected'):
                 for i, opt in enumerate(st.session_state.manual_search_results):
-                    if st.button(f"📍 {opt['label']}", key=f"man_add_opt_{i}", use_container_width=True):
+                    if st.button(f"{opt['label']}", key=f"man_add_opt_{i}", use_container_width=True):
                         st.session_state.manual_selected = opt
                         st.rerun()
             
@@ -728,7 +733,6 @@ with tab_harita:
                                     for g_id in sirali_df['Gizli_ID'].unique():
                                         st.session_state.delivery_status[g_id] = "pending"
                                         
-                                    # 🌟 İLK OTOMATİK KAYIT (T0_H0)
                                     st.session_state.rota_olusturma_zamani = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')
                                     st.session_state.aktif_dosya_yolu = None
                                     st.session_state.harita_hazir = True
@@ -871,7 +875,7 @@ with tab_harita:
                                             if basari:
                                                 st.session_state.delivery_status[g_id] = durum_sonucu
                                                 st.session_state[f"show_otp_{idx}_{g_id}"] = False
-                                                otomatik_kaydet() # 🌟 OTOMATİK KAYIT
+                                                otomatik_kaydet() 
                                                 st.toast("✅ Paket Başarıyla Teslim Edildi!")
                                                 st.rerun()
                                             else:
@@ -891,7 +895,7 @@ with tab_harita:
                                     st.session_state.delivery_status[g_id] = "success_local" 
                                     st.session_state[f"show_otp_{idx}_{g_id}"] = False
                                     st.session_state[f"trendyol_hata_{idx}_{g_id}"] = False
-                                    otomatik_kaydet() # 🌟 OTOMATİK KAYIT
+                                    otomatik_kaydet() 
                                     st.rerun()
 
                         else:
@@ -903,7 +907,7 @@ with tab_harita:
                             with c_fail:
                                 if st.button("❌ İptal / Edilemedi", key=f"fail_{idx}_{g_id}", use_container_width=True):
                                     st.session_state.delivery_status[g_id] = "failed" 
-                                    otomatik_kaydet() # 🌟 OTOMATİK KAYIT
+                                    otomatik_kaydet() 
                                     st.rerun()
                             with c_sms:
                                 if st.button("📨 SMS Gönder", key=f"sms_{idx}_{g_id}", use_container_width=True):
@@ -941,7 +945,7 @@ with tab_harita:
                                             if basari:
                                                 st.session_state.delivery_status[g_id] = "success_local"
                                                 st.session_state[f"show_otp_{idx}_{g_id}"] = False
-                                                otomatik_kaydet() # 🌟 OTOMATİK KAYIT
+                                                otomatik_kaydet() 
                                                 st.toast("✅ Paket Başarıyla Teslim Edildi!")
                                                 st.rerun()
                                     else:
@@ -959,7 +963,7 @@ with tab_harita:
                             with c_fail:
                                 if st.button("❌ İptal / Edilemedi", key=f"fail_{idx}_{g_id}", use_container_width=True):
                                     st.session_state.delivery_status[g_id] = "failed"
-                                    otomatik_kaydet() # 🌟 OTOMATİK KAYIT
+                                    otomatik_kaydet() 
                                     st.rerun()
                             with c_sms:
                                 if st.button("📨 SMS Gönder", key=f"sms_{idx}_{g_id}", use_container_width=True):
@@ -1007,7 +1011,7 @@ with tab_harita:
                     
                     if st.button("↩️ İşlemi Geri Al", key=f"undo_{idx}_{g_id}", use_container_width=True):
                         st.session_state.delivery_status[g_id] = "pending"
-                        otomatik_kaydet() # 🌟 OTOMATİK KAYIT
+                        otomatik_kaydet() 
                         st.rerun()
                         
                     st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
