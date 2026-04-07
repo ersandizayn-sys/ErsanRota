@@ -10,15 +10,18 @@ import requests
 import random
 import base64
 import os
+import urllib.parse
 from streamlit_folium import folium_static
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
 from streamlit_geolocation import streamlit_geolocation
 
 # ==========================================
-# 🔑 GOOGLE MAPS API ANAHTARINI BURAYA YAZ 🔑
+# 🔑 API ANAHTARLARI (GELİŞMİŞ ARAMA MOTORLARI) 🔑
 # ==========================================
 GOOGLE_MAPS_API_KEY = "AIzaSyAbn2TCWJDpKimkoKKb0cNcGWQj9gUF-Mg"
+YANDEX_API_KEY = "BURAYA_YANDEX_API_ANAHTARINI_YAZ" # developer.tech.yandex.com
+MAPBOX_API_KEY = "pk.eyJ1IjoiZXJzYW5kaXpheW4iLCJhIjoiY21ub2s4ZHJkMDhjODJzc2NndTE0OW5tZiJ9.bEG9jocRrOvYJ03E6gQjiQ" # account.mapbox.com
 
 # ==========================================
 # 🔑 NETGSM API AYARLARI (SMS İÇİN) 🔑
@@ -150,9 +153,9 @@ if st.session_state.kullanici is None:
                     st.rerun()
                 else:
                     st.error("❌ Kullanıcı adı veya şifre hatalı!")
-    st.stop()
+    st.stop() 
 
-# 🧠 YAPAY ZEKA: ÇİFT MOTORLU ARAMA MOTORU (Google Maps + OSM)
+# 🧠 YAPAY ZEKA: 4 MOTORLU ARAMA SİSTEMİ (Google + Mapbox + Yandex + OSM)
 @st.cache_data(show_spinner=False)
 def get_candidates(api_key, address):
     gmaps = googlemaps.Client(key=api_key)
@@ -176,8 +179,57 @@ def get_candidates(api_key, address):
             temiz_adres = temiz_adres.replace("/", " ").replace("-", " ")
             if temiz_adres.strip() != address.strip(): add_result(gmaps.geocode(f"{temiz_adres.strip()}, Türkiye"), "📍")
         except: pass
+        
+    # 2. MOTOR: MAPBOX (Yeni Eklenen Zeki Motor)
+    if MAPBOX_API_KEY != "BURAYA_MAPBOX_API_ANAHTARINI_YAZ":
+        try:
+            safe_address = urllib.parse.quote(f"{address}, Türkiye")
+            mapbox_url = f"https://api.mapbox.com/geocoding/v5/mapbox.places/{safe_address}.json"
+            m_params = {
+                "access_token": MAPBOX_API_KEY,
+                "country": "tr",
+                "limit": 3,
+                "language": "tr"
+            }
+            m_res = requests.get(mapbox_url, params=m_params, timeout=5)
+            if m_res.status_code == 200:
+                m_data = m_res.json()
+                for feature in m_data.get("features", []):
+                    addr = feature.get("place_name", "")
+                    if addr and addr not in seen_addresses:
+                        lon, lat = feature.get("center", [0, 0])
+                        seen_addresses.add(addr)
+                        candidates.append({"label": f"🟠 (MAPBOX) {addr}", "lat": lat, "lng": lon})
+        except: pass
 
-    # 2. MOTOR: OPENSTREETMAP (Ücretsiz / Detaylı Anadolu Haritası)
+    # 3. MOTOR: YANDEX MAPS (Özellikle Türkiye sokaklarında efsane)
+    if YANDEX_API_KEY != "BURAYA_YANDEX_API_ANAHTARINI_YAZ":
+        try:
+            yandex_url = "https://geocode-maps.yandex.ru/1.x/"
+            y_params = {
+                "apikey": YANDEX_API_KEY,
+                "format": "json",
+                "geocode": f"Türkiye, {address}",
+                "results": 3
+            }
+            y_res = requests.get(yandex_url, params=y_params, timeout=5)
+            if y_res.status_code == 200:
+                y_data = y_res.json()
+                features = y_data.get("response", {}).get("GeoObjectCollection", {}).get("featureMember", [])
+                for f in features:
+                    geo = f.get("GeoObject", {})
+                    name = geo.get("name", "")
+                    desc = geo.get("description", "")
+                    full_addr = f"{name}, {desc}".strip(", ")
+                    pos = geo.get("Point", {}).get("pos", "")
+                    
+                    if full_addr and pos and full_addr not in seen_addresses:
+                        lon, lat = map(float, pos.split())
+                        seen_addresses.add(full_addr)
+                        candidates.append({"label": f"🟡 (YANDEX) {full_addr}", "lat": lat, "lng": lon})
+        except: pass
+
+    # 4. MOTOR: OPENSTREETMAP (Yedek Kurtarıcı)
     try:
         headers = {'User-Agent': 'ErsanDizaynLojistik/1.0'}
         osm_url = "https://nominatim.openstreetmap.org/search"
@@ -733,6 +785,7 @@ with tab_harita:
                                     for g_id in sirali_df['Gizli_ID'].unique():
                                         st.session_state.delivery_status[g_id] = "pending"
                                         
+                                    # 🌟 İLK OTOMATİK KAYIT (T0_H0)
                                     st.session_state.rota_olusturma_zamani = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')
                                     st.session_state.aktif_dosya_yolu = None
                                     st.session_state.harita_hazir = True
@@ -890,7 +943,7 @@ with tab_harita:
                                     st.rerun()
                                     
                             if st.session_state.get(f"trendyol_hata_{idx}_{g_id}", False):
-                                st.warning("Trendyol API bu siparişi reddetti. Sistemi devam ettirmek için lokal olarak teslim edebilirsiniz.")
+                                st.warning("Trendyol API bu siparişi reddetti. Sistemi devam ettirmek için lokal teslim edebilirsiniz.")
                                 if st.button("⚠️ Trendyol'u Yoksay ve Sadece Uygulamada Teslim Et", key=f"force_{idx}_{g_id}", use_container_width=True):
                                     st.session_state.delivery_status[g_id] = "success_local" 
                                     st.session_state[f"show_otp_{idx}_{g_id}"] = False
@@ -932,6 +985,7 @@ with tab_harita:
                                         st.session_state.sirali_df = pd.concat([df_top, row_to_move, df_bottom]).reset_index(drop=True)
                                         st.rerun() 
                     else:
+                        # 1. veya Son duraksa
                         if st.session_state.get(f"show_otp_{idx}_{g_id}", False):
                             st.info("🔒 **Güvenli Teslimat:** Müşteriye SMS ile giden 4 haneli kodu girin.")
                             c_kod, c_onay, c_vazgec = st.columns([4, 4, 3])
@@ -1036,7 +1090,7 @@ with tab_profil:
     gecmis_dosyalar = [f for f in os.listdir("gecmis_rotalar") if f.endswith(".xlsx") and (f"_{st.session_state.kullanici}_" in f or f.startswith(f"{st.session_state.kullanici}_"))]
     
     if len(gecmis_dosyalar) == 0:
-        st.warning("Henüz kaydedilmiş bir geçmiş rotan bulunmuyor. Sen rotanı tamamladıkça sistem burayı otomatik dolduracak.")
+        st.warning("Henüz kaydedilmiş bir geçmiş rotan bulunmuyor. Sen rotanı oluşturdukça sistem burayı otomatik dolduracak.")
     else:
         for dosya in sorted(gecmis_dosyalar, reverse=True):
             isim_temiz = dosya.replace(".xlsx", "")
