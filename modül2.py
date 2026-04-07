@@ -155,94 +155,94 @@ if st.session_state.kullanici is None:
                     st.error("❌ Kullanıcı adı veya şifre hatalı!")
     st.stop() 
 
-# 🧠 YAPAY ZEKA: 4 MOTORLU VE GENİŞLETİLMİŞ ARAMA SİSTEMİ
+# 🧠 YAPAY ZEKA: 4 MOTORLU ARAMA SİSTEMİ (ESKİ SAĞLAM HALİNE GERİ DÖNDÜRÜLDÜ!)
 @st.cache_data(show_spinner=False)
 def get_candidates(api_key, address):
     gmaps = googlemaps.Client(key=api_key)
     candidates = []
     seen_addresses = set()
 
-    # MOTORLARI ÇALIŞTIRAN ANA FONKSİYON
-    def search_all_engines(search_text):
-        # 1. MOTOR: GOOGLE MAPS
-        try: 
-            for r in gmaps.geocode(f"{search_text}, Türkiye"):
-                addr = r.get('formatted_address', '')
+    def add_result(res_list, kaynak="📍"):
+        for r in res_list:
+            addr = r.get('formatted_address', '')
+            if addr and addr not in seen_addresses:
+                seen_addresses.add(addr)
+                candidates.append({"label": f"{kaynak} {addr}", "lat": r['geometry']['location']['lat'], "lng": r['geometry']['location']['lng']})
+
+    # 1. MOTOR: GOOGLE MAPS
+    try: add_result(gmaps.geocode(f"{address}, Türkiye"), "📍")
+    except: pass
+
+    if len(candidates) < 4:
+        try:
+            temiz_adres = re.sub(r'(?i)\b(no|numara|d|daire|kat|blok|iç kapı)\b\s*[:.]?\s*\d*[/a-zA-Z\d-]*', '', address)
+            temiz_adres = temiz_adres.replace("/", " ").replace("-", " ")
+            if temiz_adres.strip() != address.strip(): add_result(gmaps.geocode(f"{temiz_adres.strip()}, Türkiye"), "📍")
+        except: pass
+        
+    # 2. MOTOR: MAPBOX 
+    if MAPBOX_API_KEY != "BURAYA_MAPBOX_API_ANAHTARINI_YAZ":
+        try:
+            safe_address = urllib.parse.quote(f"{address}, Türkiye")
+            mapbox_url = f"https://api.mapbox.com/geocoding/v5/mapbox.places/{safe_address}.json"
+            m_params = {
+                "access_token": MAPBOX_API_KEY,
+                "country": "tr",
+                "limit": 3,
+                "language": "tr"
+            }
+            m_res = requests.get(mapbox_url, params=m_params, timeout=5)
+            if m_res.status_code == 200:
+                m_data = m_res.json()
+                for feature in m_data.get("features", []):
+                    addr = feature.get("place_name", "")
+                    if addr and addr not in seen_addresses:
+                        lon, lat = feature.get("center", [0, 0])
+                        seen_addresses.add(addr)
+                        candidates.append({"label": f"🟠 (MAPBOX) {addr}", "lat": lat, "lng": lon})
+        except: pass
+
+    # 3. MOTOR: YANDEX MAPS 
+    if YANDEX_API_KEY != "BURAYA_YANDEX_API_ANAHTARINI_YAZ":
+        try:
+            yandex_url = "https://geocode-maps.yandex.ru/1.x/"
+            y_params = {
+                "apikey": YANDEX_API_KEY,
+                "format": "json",
+                "geocode": f"Türkiye, {address}",
+                "results": 3
+            }
+            y_res = requests.get(yandex_url, params=y_params, timeout=5)
+            if y_res.status_code == 200:
+                y_data = y_res.json()
+                features = y_data.get("response", {}).get("GeoObjectCollection", {}).get("featureMember", [])
+                for f in features:
+                    geo = f.get("GeoObject", {})
+                    name = geo.get("name", "")
+                    desc = geo.get("description", "")
+                    full_addr = f"{name}, {desc}".strip(", ")
+                    pos = geo.get("Point", {}).get("pos", "")
+                    
+                    if full_addr and pos and full_addr not in seen_addresses:
+                        lon, lat = map(float, pos.split())
+                        seen_addresses.add(full_addr)
+                        candidates.append({"label": f"🟡 (YANDEX) {full_addr}", "lat": lat, "lng": lon})
+        except: pass
+
+    # 4. MOTOR: OPENSTREETMAP 
+    try:
+        headers = {'User-Agent': 'ErsanDizaynLojistik/1.0'}
+        osm_url = "https://nominatim.openstreetmap.org/search"
+        params = {'q': f"{address}, Türkiye", 'format': 'json', 'limit': 3}
+        response = requests.get(osm_url, headers=headers, params=params, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            for item in data:
+                addr = item.get('display_name', '')
                 if addr and addr not in seen_addresses:
                     seen_addresses.add(addr)
-                    candidates.append({"label": f"📍 {addr}", "lat": r['geometry']['location']['lat'], "lng": r['geometry']['location']['lng']})
-        except: pass
-            
-        # 2. MOTOR: MAPBOX
-        if MAPBOX_API_KEY != "BURAYA_MAPBOX_API_ANAHTARINI_YAZ":
-            try:
-                safe_address = urllib.parse.quote(f"{search_text}, Türkiye")
-                mapbox_url = f"https://api.mapbox.com/geocoding/v5/mapbox.places/{safe_address}.json"
-                m_params = {"access_token": MAPBOX_API_KEY, "country": "tr", "limit": 3, "language": "tr"}
-                m_res = requests.get(mapbox_url, params=m_params, timeout=5)
-                if m_res.status_code == 200:
-                    for feature in m_res.json().get("features", []):
-                        addr = feature.get("place_name", "")
-                        if addr and addr not in seen_addresses:
-                            lon, lat = feature.get("center", [0, 0])
-                            seen_addresses.add(addr)
-                            candidates.append({"label": f"🟠 (MAPBOX) {addr}", "lat": lat, "lng": lon})
-            except: pass
-
-        # 3. MOTOR: YANDEX MAPS
-        if YANDEX_API_KEY != "BURAYA_YANDEX_API_ANAHTARINI_YAZ":
-            try:
-                yandex_url = "https://geocode-maps.yandex.ru/1.x/"
-                y_params = {"apikey": YANDEX_API_KEY, "format": "json", "geocode": f"Türkiye, {search_text}", "results": 3}
-                y_res = requests.get(yandex_url, params=y_params, timeout=5)
-                if y_res.status_code == 200:
-                    features = y_res.json().get("response", {}).get("GeoObjectCollection", {}).get("featureMember", [])
-                    for f in features:
-                        geo = f.get("GeoObject", {})
-                        full_addr = f"{geo.get('name', '')}, {geo.get('description', '')}".strip(", ")
-                        pos = geo.get("Point", {}).get("pos", "")
-                        if full_addr and pos and full_addr not in seen_addresses:
-                            lon, lat = map(float, pos.split())
-                            seen_addresses.add(full_addr)
-                            candidates.append({"label": f"🟡 (YANDEX) {full_addr}", "lat": lat, "lng": lon})
-            except: pass
-
-        # 4. MOTOR: OPENSTREETMAP
-        try:
-            osm_url = "https://nominatim.openstreetmap.org/search"
-            params = {'q': f"{search_text}, Türkiye", 'format': 'json', 'limit': 3}
-            response = requests.get(osm_url, headers={'User-Agent': 'ErsanDizayn/1.0'}, params=params, timeout=5)
-            if response.status_code == 200:
-                for item in response.json():
-                    addr = item.get('display_name', '')
-                    if addr and addr not in seen_addresses:
-                        seen_addresses.add(addr)
-                        candidates.append({"label": f"🌍 (OSM) {addr}", "lat": float(item['lat']), "lng": float(item['lon'])})
-        except: pass
-
-    # AŞAMA 1: Orijinal Adresi Ara
-    search_all_engines(address)
-
-    # AŞAMA 2: Bina ve Daire Numaralarını Temizle
-    if len(candidates) < 4:
-        temiz_adres = re.sub(r'(?i)\b(no|numara|d|daire|kat|blok|iç kapı)\b\s*[:.]?\s*\d*[/a-zA-Z\d-]*', '', address)
-        temiz_adres = temiz_adres.replace("/", " ").replace("-", " ")
-        if temiz_adres.strip() != address.strip():
-            search_all_engines(temiz_adres.strip())
-            
-    # 🌟 AŞAMA 3: MAHALLE ATLAYAN ZEKİ ARAMA (YENİ)
-    # Bulamazsa, "Ahmet Mahallesi", "Mehmet Mah." gibi kısımları adresten silip, sokak ismini o şehirdeki DİĞER mahallelerde arar.
-    if len(candidates) < 4:
-        # "Mahalle" kelimesi ve bir önceki kelimeyi (Örn: "Enes Mahallesi") toptan sil
-        mahallesiz = re.sub(r'(?i)\b\w+\s+(mah|mahallesi|mh|köyü|koy)\b\.?', '', address)
-        if mahallesiz.strip() != address.strip() and len(mahallesiz.strip()) > 3:
-            search_all_engines(mahallesiz.strip())
-
-    # AŞAMA 4: Son Kelimeler (Sadece İlçe/İl denemesi)
-    if len(candidates) < 4:
-        kelimeler = address.replace(',', ' ').split()
-        if len(kelimeler) > 3: 
-            search_all_engines(f"{' '.join(kelimeler[-4:])}")
+                    candidates.append({"label": f"🌍 (OSM) {addr}", "lat": float(item['lat']), "lng": float(item['lon'])})
+    except: pass
 
     return candidates
 
@@ -460,8 +460,9 @@ with tab_kurulum:
 <div style="color: #e0e0e0; font-size: 15px;">{row['Adres']}</div></div>"""
                 st.markdown(html_secim, unsafe_allow_html=True)
                 
-                # 🌟 YENİ: text_area YERİNE text_input KULLANILDI. ARTIK SADECE ENTER'A BASMAK YETERLİ!
                 st.info("💡 **TÜYO:** Çok az seçenek çıkıyorsa, bina/daire numarasını silip sadece **Sokak/Mahalle/İlçe** bırakıp Enter'a basın.")
+                
+                # 🌟 KULLANICI İSTEĞİ: text_area yerine text_input (Tek Enter ile arama)
                 yeni_arama = st.text_input("🔍 Adresi sadeleştirip tekrar ara (Sadece Enter'a bas):", value=st.session_state.custom_search)
                 
                 if yeni_arama != st.session_state.custom_search:
@@ -943,7 +944,7 @@ with tab_harita:
                                     st.rerun()
                                     
                             if st.session_state.get(f"trendyol_hata_{idx}_{g_id}", False):
-                                st.warning("Trendyol API bu siparişi teslim etmeyi reddetti. Sistemi devam ettirmek için lokal olarak teslim edebilirsiniz.")
+                                st.warning("Trendyol API bu siparişi reddetti. Sistemi devam ettirmek için lokal olarak teslim edebilirsiniz.")
                                 if st.button("⚠️ Trendyol'u Yoksay ve Sadece Uygulamada Teslim Et", key=f"force_{idx}_{g_id}", use_container_width=True):
                                     st.session_state.delivery_status[g_id] = "success_local" 
                                     st.session_state[f"show_otp_{idx}_{g_id}"] = False
