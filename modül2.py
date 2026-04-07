@@ -21,7 +21,7 @@ from streamlit_geolocation import streamlit_geolocation
 # ==========================================
 GOOGLE_MAPS_API_KEY = "AIzaSyAbn2TCWJDpKimkoKKb0cNcGWQj9gUF-Mg"
 YANDEX_API_KEY = "BURAYA_YANDEX_API_ANAHTARINI_YAZ" # developer.tech.yandex.com
-MAPBOX_API_KEY = "BURAYA_MAPBOX_API_ANAHTARINI_YAZ" # account.mapbox.com
+MAPBOX_API_KEY = "pk.eyJ1IjoiZXJzYW5kaXpheW4iLCJhIjoiY21ub2s4ZHJkMDhjODJzc2NndTE0OW5tZiJ9.bEG9jocRrOvYJ03E6gQjiQ" # account.mapbox.com
 
 # ==========================================
 # 🔑 NETGSM API AYARLARI (SMS İÇİN) 🔑
