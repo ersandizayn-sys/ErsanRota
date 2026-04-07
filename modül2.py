@@ -34,8 +34,8 @@ NETGSM_BASLIK = "ERSANDIZAYN"
 # 🔑 TRENDYOL API AYARLARI (TESLİMAT İÇİN) 🔑
 # ==========================================
 TRENDYOL_SATICI_ID = "113341"
-TRENDYOL_API_KEY = "ZXbDKYXoLmvup2bdlCZ8"
-TRENDYOL_API_SECRET = "pwTNHm0dgSX6KORXBFIs"
+TRENDYOL_API_KEY = "AuxSwawTyWjTLGQsNw5A"
+TRENDYOL_API_SECRET = "J0Olyf7aJxGssbmzMtSm"
 
 # ==========================================
 # 🔒 SİSTEM GÜVENLİK AYARLARI 🔒
@@ -155,6 +155,41 @@ if st.session_state.kullanici is None:
                     st.error("❌ Kullanıcı adı veya şifre hatalı!")
     st.stop() 
 
+# 🧹 YAPAY ZEKA: GELİŞMİŞ ADRES TEMİZLEYİCİ
+def akilli_adres_temizleyici(adres):
+    adres = str(adres).replace('\n', ' ')
+
+    # 1. Pazaryeri Ön Eklerini Kes (Sadece "Adres detay:" sonrasını al)
+    if "Adres detay:" in adres:
+        adres = adres.split("Adres detay:")[1]
+    elif "Adres:" in adres:
+        adres = adres.split("Adres:")[1]
+
+    # 2. Silinecek Kelime ve Kalıplar
+    silinecekler = [
+        # Kat, Daire, Blok, İç Kapı ve bitişiğindeki rakamlar (No/Numara'ya DOKUNMUYORUZ)
+        r'(?i)\b(kat|daire|d|blok|iç kapı)\b\s*[:.-]?\s*\d*[a-zA-Z]?',
+        
+        # Site ve Apartman isimlerini kendinden önceki 1 kelimeyle birlikte sil (Örn: Zambak Apt, Huzur Sitesi)
+        r'(?i)\b\w+\s+(sitesi|site|apt|apartmanı|evleri|konutları|blokları|rezidans|plaza)\b',
+        
+        # Müşteri hikayeleri ve yön tarifleri
+        r'(?i)\b(binadan girince|binaya girince|zemin|bodrum|giriş|yüksek giriş|kattan|karşısı|yanı|arkası|sağda|solda|köşesi|civarında)\b',
+        
+        # Parantez içindeki her şeyi komple sil
+        r'\([^)]*\)'
+    ]
+
+    for sablon in silinecekler:
+        adres = re.sub(sablon, ' ', adres)
+
+    # 3. Fazla boşlukları ve baştaki/sondaki gereksiz virgülleri toparla
+    adres = re.sub(r'\s+', ' ', adres).strip()
+    adres = re.sub(r'^[,\./-]+|[,\./-]+$', '', adres)
+
+    return adres.strip()
+
+
 # 🧠 YAPAY ZEKA: 4 MOTORLU ARAMA SİSTEMİ (Google + Mapbox + Yandex + OSM)
 @st.cache_data(show_spinner=False)
 def get_candidates(api_key, address):
@@ -173,11 +208,12 @@ def get_candidates(api_key, address):
     try: add_result(gmaps.geocode(f"{address}, Türkiye"), "📍")
     except: pass
 
+    # Temizlenmiş adresle Google'ı tekrar zorla
     if len(candidates) < 4:
         try:
-            temiz_adres = re.sub(r'(?i)\b(no|numara|d|daire|kat|blok|iç kapı)\b\s*[:.]?\s*\d*[/a-zA-Z\d-]*', '', address)
-            temiz_adres = temiz_adres.replace("/", " ").replace("-", " ")
-            if temiz_adres.strip() != address.strip(): add_result(gmaps.geocode(f"{temiz_adres.strip()}, Türkiye"), "📍")
+            alternatif_adres = akilli_adres_temizleyici(address)
+            if alternatif_adres != address: 
+                add_result(gmaps.geocode(f"{alternatif_adres}, Türkiye"), "📍 (Temiz)")
         except: pass
         
     # 2. MOTOR: MAPBOX (Yeni Eklenen Zeki Motor)
@@ -448,7 +484,9 @@ with tab_kurulum:
             if not st.session_state.awaiting_confirmation:
                 if 'current_step_memory' not in st.session_state or st.session_state.current_step_memory != current:
                     st.session_state.current_step_memory = current
-                    st.session_state.custom_search = str(row['Adres']).replace("\n", " ")
+                    
+                    # Adresi sihirbaz kutusuna koymadan önce tertemiz yapıyoruz
+                    st.session_state.custom_search = akilli_adres_temizleyici(str(row['Adres']))
                 
                 html_secim = f"""<div style="background-color: #2b2b36; padding: 20px; border-radius: 12px; margin-bottom: 20px; border-left: 5px solid #1e88e5;">
 <div style="display: flex; justify-content: space-between; align-items: flex-start;">
@@ -730,7 +768,7 @@ with tab_harita:
                                                 res = gmaps.geocode(f"{adres}, Türkiye")
                                                 if res: lat, lon = res[0]['geometry']['location']['lat'], res[0]['geometry']['location']['lng']
                                             except: pass
-                                                
+                                            
                                     if lat != 0.0 and lon != 0.0:
                                         enlemler.append(lat)
                                         boylamlar.append(lon)
@@ -893,7 +931,7 @@ with tab_harita:
 <div style="font-size: 20px; font-weight: 700; color: #ffffff; letter-spacing: 0.5px; flex: 1;">{row['Alici_Ad']}</div>
 {urun_html}
 </div>
-<div style="font-size: 13px; color: #b0b0b0; margin-bottom: 6px;">📦 Paket No: {row['Paket_No']}  |  📑 Sipariş: {row['Siparis_No']}</div>
+<div style="font-size: 13px; color: #b0b0b0; margin-bottom: 6px;">📦 Paket No: {row['Paket_No']}  |  📑 Sipariş: {row['Siparis_No']}</div>
 <div style="font-size: 14px; color: #a0a0b0; margin-bottom: 20px; line-height: 1.5; display: flex; align-items: flex-start; gap: 6px;">
 <span style="font-size: 16px;">📍</span><span>{row['Adres']}</span>
 </div>
