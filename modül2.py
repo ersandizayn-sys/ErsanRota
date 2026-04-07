@@ -21,7 +21,7 @@ from streamlit_geolocation import streamlit_geolocation
 # ==========================================
 GOOGLE_MAPS_API_KEY = "AIzaSyAbn2TCWJDpKimkoKKb0cNcGWQj9gUF-Mg"
 YANDEX_API_KEY = "BURAYA_YANDEX_API_ANAHTARINI_YAZ" # developer.tech.yandex.com
-MAPBOX_API_KEY = "BURAYA_MAPBOX_API_ANAHTARINI_YAZ" # account.mapbox.com
+MAPBOX_API_KEY = "pk.eyJ1IjoiZXJzYW5kaXpheW4iLCJhIjoiY21ub2s4ZHJkMDhjODJzc2NndTE0OW5tZiJ9.bEG9jocRrOvYJ03E6gQjiQ" # account.mapbox.com
 
 # ==========================================
 # 🔑 NETGSM API AYARLARI (SMS İÇİN) 🔑
@@ -34,8 +34,8 @@ NETGSM_BASLIK = "ERSANDIZAYN"
 # 🔑 TRENDYOL API AYARLARI (TESLİMAT İÇİN) 🔑
 # ==========================================
 TRENDYOL_SATICI_ID = "113341"
-TRENDYOL_API_KEY = "ZXbDKYXoLmvup2bdlCZ8"
-TRENDYOL_API_SECRET = "pwTNHm0dgSX6KORXBFIs"
+TRENDYOL_API_KEY = "AuxSwawTyWjTLGQsNw5A"
+TRENDYOL_API_SECRET = "J0Olyf7aJxGssbmzMtSm"
 
 # ==========================================
 # 🔒 SİSTEM GÜVENLİK AYARLARI 🔒
@@ -155,7 +155,7 @@ if st.session_state.kullanici is None:
                     st.error("❌ Kullanıcı adı veya şifre hatalı!")
     st.stop() 
 
-# 🧠 YAPAY ZEKA: 4 MOTORLU ARAMA SİSTEMİ (ESKİ SAĞLAM HALİNE GERİ DÖNDÜRÜLDÜ!)
+# 🧠 YAPAY ZEKA: 4 MOTORLU ARAMA SİSTEMİ (Google + Mapbox + Yandex + OSM)
 @st.cache_data(show_spinner=False)
 def get_candidates(api_key, address):
     gmaps = googlemaps.Client(key=api_key)
@@ -180,7 +180,7 @@ def get_candidates(api_key, address):
             if temiz_adres.strip() != address.strip(): add_result(gmaps.geocode(f"{temiz_adres.strip()}, Türkiye"), "📍")
         except: pass
         
-    # 2. MOTOR: MAPBOX 
+    # 2. MOTOR: MAPBOX (Yeni Eklenen Zeki Motor)
     if MAPBOX_API_KEY != "BURAYA_MAPBOX_API_ANAHTARINI_YAZ":
         try:
             safe_address = urllib.parse.quote(f"{address}, Türkiye")
@@ -202,7 +202,7 @@ def get_candidates(api_key, address):
                         candidates.append({"label": f"🟠 (MAPBOX) {addr}", "lat": lat, "lng": lon})
         except: pass
 
-    # 3. MOTOR: YANDEX MAPS 
+    # 3. MOTOR: YANDEX MAPS (Özellikle Türkiye sokaklarında efsane)
     if YANDEX_API_KEY != "BURAYA_YANDEX_API_ANAHTARINI_YAZ":
         try:
             yandex_url = "https://geocode-maps.yandex.ru/1.x/"
@@ -229,7 +229,7 @@ def get_candidates(api_key, address):
                         candidates.append({"label": f"🟡 (YANDEX) {full_addr}", "lat": lat, "lng": lon})
         except: pass
 
-    # 4. MOTOR: OPENSTREETMAP 
+    # 4. MOTOR: OPENSTREETMAP (Yedek Kurtarıcı)
     try:
         headers = {'User-Agent': 'ErsanDizaynLojistik/1.0'}
         osm_url = "https://nominatim.openstreetmap.org/search"
@@ -460,10 +460,8 @@ with tab_kurulum:
 <div style="color: #e0e0e0; font-size: 15px;">{row['Adres']}</div></div>"""
                 st.markdown(html_secim, unsafe_allow_html=True)
                 
-                st.info("💡 **TÜYO:** Çok az seçenek çıkıyorsa, bina/daire numarasını silip sadece **Sokak/Mahalle/İlçe** bırakıp Enter'a basın.")
-                
-                # 🌟 KULLANICI İSTEĞİ: text_area yerine text_input (Tek Enter ile arama)
-                yeni_arama = st.text_input("🔍 Adresi sadeleştirip tekrar ara (Sadece Enter'a bas):", value=st.session_state.custom_search)
+                st.info("💡 **TÜYO:** Çok az seçenek çıkıyorsa, bina numarası ve daireyi silip sadece **Sokak/Mahalle/İlçe** bırakıp Enter'a basın.")
+                yeni_arama = st.text_area("🔍 Adresi sadeleştirip tekrar ara (Enter'a bas):", value=st.session_state.custom_search, height=80)
                 
                 if yeni_arama != st.session_state.custom_search:
                     st.session_state.custom_search = yeni_arama
@@ -787,6 +785,7 @@ with tab_harita:
                                     for g_id in sirali_df['Gizli_ID'].unique():
                                         st.session_state.delivery_status[g_id] = "pending"
                                         
+                                    # 🌟 İLK OTOMATİK KAYIT (T0_H0)
                                     st.session_state.rota_olusturma_zamani = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')
                                     st.session_state.aktif_dosya_yolu = None
                                     st.session_state.harita_hazir = True
@@ -944,7 +943,7 @@ with tab_harita:
                                     st.rerun()
                                     
                             if st.session_state.get(f"trendyol_hata_{idx}_{g_id}", False):
-                                st.warning("Trendyol API bu siparişi reddetti. Sistemi devam ettirmek için lokal olarak teslim edebilirsiniz.")
+                                st.warning("Trendyol API bu siparişi reddetti. Sistemi devam ettirmek için lokal teslim edebilirsiniz.")
                                 if st.button("⚠️ Trendyol'u Yoksay ve Sadece Uygulamada Teslim Et", key=f"force_{idx}_{g_id}", use_container_width=True):
                                     st.session_state.delivery_status[g_id] = "success_local" 
                                     st.session_state[f"show_otp_{idx}_{g_id}"] = False
@@ -986,6 +985,7 @@ with tab_harita:
                                         st.session_state.sirali_df = pd.concat([df_top, row_to_move, df_bottom]).reset_index(drop=True)
                                         st.rerun() 
                     else:
+                        # 1. veya Son duraksa
                         if st.session_state.get(f"show_otp_{idx}_{g_id}", False):
                             st.info("🔒 **Güvenli Teslimat:** Müşteriye SMS ile giden 4 haneli kodu girin.")
                             c_kod, c_onay, c_vazgec = st.columns([4, 4, 3])
