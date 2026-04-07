@@ -1007,7 +1007,8 @@ with tab_harita:
                                         if basari: st.toast(f"✅ {row['Alici_Ad']} kişisine SMS gönderildi!")
                                         else: st.error(f"❌ {msj}")
                             
-                            c_sira, c_tasi, _ = st.columns([3, 3, 3])
+                            # --- YENİ EKLENEN TAŞI VE DÜZENLE BLOĞU ---
+                            c_sira, c_tasi, c_duzenle = st.columns([3, 3, 3])
                             with c_sira:
                                 maks_durak = max(2, len(st.session_state.sirali_df) - 1)
                                 hedef_sira = st.number_input("Sıra No", min_value=2, max_value=maks_durak, value=durak_no, key=f"sira_{idx}_{g_id}", label_visibility="collapsed")
@@ -1022,6 +1023,38 @@ with tab_harita:
                                         df_bottom = df_temp.iloc[yeni_idx:]
                                         st.session_state.sirali_df = pd.concat([df_top, row_to_move, df_bottom]).reset_index(drop=True)
                                         st.rerun() 
+                            with c_duzenle:
+                                if st.button("✏️ Düzenle", key=f"edit_btn_{idx}_{g_id}", use_container_width=True):
+                                    st.session_state[f"edit_mode_{g_id}"] = not st.session_state.get(f"edit_mode_{g_id}", False)
+                                    st.rerun()
+                                    
+                            # DÜZENLEME PANELİ AÇILDIĞINDA GÖRÜNECEK KISIM
+                            if st.session_state.get(f"edit_mode_{g_id}", False):
+                                st.markdown("<div style='background-color: #1e1e24; padding: 15px; border-radius: 10px; border: 2px dashed #ff9800; margin-top: 10px;'>", unsafe_allow_html=True)
+                                st.markdown(f"<span style='color: #ff9800; font-weight: bold;'>✏️ {row['Alici_Ad']} Adresini Güncelle</span>", unsafe_allow_html=True)
+                                
+                                yeni_arama = st.text_input("Şehir/İlçe/Mahalle belirterek arayın:", key=f"arama_{g_id}")
+                                if st.button("🔍 Yeni Konumu Bul", key=f"bul_{g_id}", use_container_width=True):
+                                    if yeni_arama.strip() != "":
+                                        with st.spinner("Arama Motorları Tarıyor..."):
+                                            st.session_state[f"edit_sonuc_{g_id}"] = get_candidates(GOOGLE_MAPS_API_KEY, yeni_arama)
+                                
+                                sonuclar = st.session_state.get(f"edit_sonuc_{g_id}", [])
+                                for s_idx, sec in enumerate(sonuclar):
+                                    if st.button(f"📍 {sec['label']}", key=f"sec_{g_id}_{s_idx}", use_container_width=True):
+                                        # Seçilen adresi Veritabanı ve Aktif Rotaya yaz
+                                        st.session_state.df_validated.loc[st.session_state.df_validated['Gizli_ID'] == g_id, ['Adres', 'Onayli_Enlem', 'Onayli_Boylam']] = [sec['label'], sec['lat'], sec['lng']]
+                                        st.session_state.sirali_df.loc[st.session_state.sirali_df['Gizli_ID'] == g_id, ['Adres', 'Enlem', 'Boylam']] = [sec['label'], sec['lat'], sec['lng']]
+                                        
+                                        st.session_state[f"edit_mode_{g_id}"] = False # Paneli Kapat
+                                        st.session_state[f"edit_sonuc_{g_id}"] = [] # Geçmişi temizle
+                                        st.toast("✅ Adres başarıyla değiştirildi! Harita güncelleniyor...")
+                                        st.rerun()
+                                        
+                                if st.button("❌ İptal Et (Kapat)", key=f"kapat_{g_id}"):
+                                    st.session_state[f"edit_mode_{g_id}"] = False
+                                    st.rerun()
+                                st.markdown("</div><br>", unsafe_allow_html=True)
                     else:
                         # 1. veya Son duraksa
                         if st.session_state.get(f"show_otp_{idx}_{g_id}", False):
