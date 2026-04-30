@@ -241,46 +241,43 @@ def get_candidates(api_key, address):
     # 3. MOTOR: YANDEX MAPS (Özellikle Türkiye sokaklarında efsane)
     if YANDEX_API_KEY != "":
         try:
-        # .ru yerine uluslararası .com adresini kullanıyoruz (engellere takılmamak için)
-        yandex_url = "https://geocode-maps.yandex.com/1.x/"
-        y_params = {
-            "apikey": YANDEX_API_KEY,
-            "format": "json",
-            "geocode": f"Türkiye, {address}",
-            "lang": "tr_TR", # Türkçe dil ve Türkiye bölge desteğini zorluyoruz
-            "results": 3
-        }
-        
-        # Yandex'e isteğin sitemizden geldiğini kanıtlıyoruz (HTTP Referer)
-        y_headers = {
-            "Referer": "https://ersanrota-ydhujxyemuc6fk2eiezskv.streamlit.app/"
-        }
-        
-        # y_headers'ı isteğe dahil ettik
-        y_res = requests.get(yandex_url, params=y_params, headers=y_headers, timeout=5)
-        
-        if y_res.status_code == 200:
-            y_data = y_res.json()
-            features = y_data.get("response", {}).get("GeoObjectCollection", {}).get("featureMember", [])
+            # .ru yerine uluslararası .com adresini kullanıyoruz
+            yandex_url = "https://geocode-maps.yandex.com/1.x/"
+            y_params = {
+                "apikey": YANDEX_API_KEY,
+                "format": "json",
+                "geocode": f"Türkiye, {address}",
+                "lang": "tr_TR",
+                "results": 3
+            }
             
-            for f in features:
-                geo = f.get("GeoObject", {})
-                name = geo.get("name", "")
-                desc = geo.get("description", "")
-                full_addr = f"{name}, {desc}".strip(", ")
-                pos = geo.get("Point", {}).get("pos", "")
+            # Yandex'e isteğin sitemizden geldiğini kanıtlıyoruz (HTTP Referer)
+            y_headers = {
+                "Referer": "https://ersanrota-ydhujxyemuc6fk2eiezskv.streamlit.app/"
+            }
+            
+            y_res = requests.get(yandex_url, params=y_params, headers=y_headers, timeout=5)
+            
+            if y_res.status_code == 200:
+                y_data = y_res.json()
+                features = y_data.get("response", {}).get("GeoObjectCollection", {}).get("featureMember", [])
                 
-                if full_addr and pos and full_addr not in seen_addresses:
-                    lon, lat = map(float, pos.split())
-                    seen_addresses.add(full_addr)
-                    candidates.append({"label": f"🟡 (YANDEX) {full_addr}", "lat": lat, "lng": lon})
-        else:
-            # EĞER YANDEX API HATA VERİRSE EKRANA BASACAK
-            st.error(f"Yandex API Hatası: {y_res.status_code} - {y_res.text}")
-            
-    # İŞTE EKSİK OLAN KISIM BURASIYDI:
-    except Exception as e:
-        st.error(f"Yandex'e bağlanırken bir hata oluştu: {e}")
+                for f in features:
+                    geo = f.get("GeoObject", {})
+                    name = geo.get("name", "")
+                    desc = geo.get("description", "")
+                    full_addr = f"{name}, {desc}".strip(", ")
+                    pos = geo.get("Point", {}).get("pos", "")
+                    
+                    if full_addr and pos and full_addr not in seen_addresses:
+                        lon, lat = map(float, pos.split())
+                        seen_addresses.add(full_addr)
+                        candidates.append({"label": f"🟡 (YANDEX) {full_addr}", "lat": lat, "lng": lon})
+            else:
+                st.error(f"Yandex API Hatası: {y_res.status_code} - {y_res.text}")
+                
+        except Exception as e:
+            st.error(f"Yandex'e bağlanırken bir hata oluştu: {e}")
 
     # 4. MOTOR: OPENSTREETMAP (Yedek Kurtarıcı)
     try:
