@@ -239,19 +239,23 @@ def get_candidates(api_key, address):
         except: pass
 
     # 3. MOTOR: YANDEX MAPS (Özellikle Türkiye sokaklarında efsane)
-    if YANDEX_API_KEY != "BURAYA_YANDEX_API_ANAHTARINI_YAZ":
+    if YANDEX_API_KEY != "89e7e637-788c-4fb7-8dd5-04b6c1529ef3":
         try:
-            yandex_url = "https://geocode-maps.yandex.ru/1.x/"
+            # .ru yerine uluslararası .com adresini kullanıyoruz (engellere takılmamak için)
+            yandex_url = "https://geocode-maps.yandex.com/1.x/"
             y_params = {
                 "apikey": YANDEX_API_KEY,
                 "format": "json",
                 "geocode": f"Türkiye, {address}",
+                "lang": "tr_TR", # Türkçe dil ve Türkiye bölge desteğini zorluyoruz
                 "results": 3
             }
             y_res = requests.get(yandex_url, params=y_params, timeout=5)
+            
             if y_res.status_code == 200:
                 y_data = y_res.json()
                 features = y_data.get("response", {}).get("GeoObjectCollection", {}).get("featureMember", [])
+                
                 for f in features:
                     geo = f.get("GeoObject", {})
                     name = geo.get("name", "")
@@ -263,7 +267,13 @@ def get_candidates(api_key, address):
                         lon, lat = map(float, pos.split())
                         seen_addresses.add(full_addr)
                         candidates.append({"label": f"🟡 (YANDEX) {full_addr}", "lat": lat, "lng": lon})
-        except: pass
+            else:
+                # EĞER YANDEX API HATA VERİRSE EKRANA BASACAK (Bunu görelim ki çözelim)
+                st.error(f"Yandex API Hatası: {y_res.status_code} - {y_res.text}")
+                
+        except Exception as e: 
+            # EĞER BAĞLANTI KOPAR VEYA ZAMAN AŞIMI OLURSA EKRANA BASACAK
+            st.error(f"Yandex Bağlantı Çöktü: {str(e)}")
 
     # 4. MOTOR: OPENSTREETMAP (Yedek Kurtarıcı)
     try:
