@@ -242,7 +242,7 @@ def get_candidates(api_key, address):
     if YANDEX_API_KEY != "":
         try:
             # .ru yerine uluslararası .com adresini kullanıyoruz (engellere takılmamak için)
-            yandex_url = "https://geocode-maps.yandex.com/1.x/"
+            yandex_url = "https://geocode-maps.yandex.ru/1.x/"
             y_params = {
                 "apikey": YANDEX_API_KEY,
                 "format": "json",
