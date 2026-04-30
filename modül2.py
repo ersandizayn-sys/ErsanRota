@@ -241,16 +241,25 @@ def get_candidates(api_key, address):
     # 3. MOTOR: YANDEX MAPS (Özellikle Türkiye sokaklarında efsane)
     if YANDEX_API_KEY != "":
         try:
-            # .ru yerine uluslararası .com adresini kullanıyoruz (engellere takılmamak için)
+            # .com yerine orijinal .ru adresini kullanıyoruz
             yandex_url = "https://geocode-maps.yandex.ru/1.x/"
+            
             y_params = {
-                "apikey": YANDEX_API_KEY,
+                "apikey": YANDEX_API_KEY.strip(), # Görünmez boşlukları (space) otomatik siler
                 "format": "json",
                 "geocode": f"Türkiye, {address}",
-                "lang": "tr_TR", # Türkçe dil ve Türkiye bölge desteğini zorluyoruz
+                "lang": "tr_TR", # Türkçe dil ve Türkiye bölge desteği
                 "results": 3
             }
-            y_res = requests.get(yandex_url, params=y_params, timeout=5)
+            
+            # Yandex'e tam bir Google Chrome tarayıcısı ve uygulamanın kendi adresiymiş gibi gidiyoruz
+            y_headers = {
+                "Referer": "https://ersanrota-ydhujxyemuc6fk2eiezskv.streamlit.app/",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+            
+            # İstek atarken headers'ı (kimliği) da gönderiyoruz
+            y_res = requests.get(yandex_url, params=y_params, headers=y_headers, timeout=5)
             
             if y_res.status_code == 200:
                 y_data = y_res.json()
@@ -268,7 +277,7 @@ def get_candidates(api_key, address):
                         seen_addresses.add(full_addr)
                         candidates.append({"label": f"🟡 (YANDEX) {full_addr}", "lat": lat, "lng": lon})
             else:
-                # EĞER YANDEX API HATA VERİRSE EKRANA BASACAK (Bunu görelim ki çözelim)
+                # EĞER YANDEX API HATA VERİRSE EKRANA BASACAK
                 st.error(f"Yandex API Hatası: {y_res.status_code} - {y_res.text}")
                 
         except Exception as e: 
