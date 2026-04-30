@@ -250,7 +250,14 @@ def get_candidates(api_key, address):
                 "lang": "tr_TR", # Türkçe dil ve Türkiye bölge desteğini zorluyoruz
                 "results": 3
             }
-            y_res = requests.get(yandex_url, params=y_params, timeout=5)
+            
+            # YENİ EKLENEN KISIM: Yandex'e isteğin sitemizden geldiğini kanıtlıyoruz
+            y_headers = {
+                "Referer": "https://ersanrota-ydhujxyemuc6fk2eiezskv.streamlit.app/"
+            }
+            
+            # y_headers'ı isteğe dahil ettik
+            y_res = requests.get(yandex_url, params=y_params, headers=y_headers, timeout=5)
             
             if y_res.status_code == 200:
                 y_data = y_res.json()
@@ -268,12 +275,8 @@ def get_candidates(api_key, address):
                         seen_addresses.add(full_addr)
                         candidates.append({"label": f"🟡 (YANDEX) {full_addr}", "lat": lat, "lng": lon})
             else:
-                # EĞER YANDEX API HATA VERİRSE EKRANA BASACAK (Bunu görelim ki çözelim)
+                # EĞER YANDEX API HATA VERİRSE EKRANA BASACAK
                 st.error(f"Yandex API Hatası: {y_res.status_code} - {y_res.text}")
-                
-        except Exception as e: 
-            # EĞER BAĞLANTI KOPAR VEYA ZAMAN AŞIMI OLURSA EKRANA BASACAK
-            st.error(f"Yandex Bağlantı Çöktü: {str(e)}")
 
     # 4. MOTOR: OPENSTREETMAP (Yedek Kurtarıcı)
     try:
