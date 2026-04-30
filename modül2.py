@@ -239,7 +239,7 @@ def get_candidates(api_key, address):
         except: pass
 
     # 3. MOTOR: YANDEX MAPS (Özellikle Türkiye sokaklarında efsane)
-    if YANDEX_API_KEY != "89e7e637-788c-4fb7-8dd5-04b6c1529ef3":
+    if YANDEX_API_KEY != "":
         try:
             # .ru yerine uluslararası .com adresini kullanıyoruz (engellere takılmamak için)
             yandex_url = "https://geocode-maps.yandex.com/1.x/"
