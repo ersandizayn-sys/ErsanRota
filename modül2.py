@@ -20,7 +20,7 @@ from streamlit_geolocation import streamlit_geolocation
 # 🔑 API ANAHTARLARI (GELİŞMİŞ ARAMA MOTORLARI) 🔑
 # ==========================================
 GOOGLE_MAPS_API_KEY = "AIzaSyAbn2TCWJDpKimkoKKb0cNcGWQj9gUF-Mg"
-YANDEX_API_KEY = "BURAYA_YANDEX_API_ANAHTARINI_YAZ" # developer.tech.yandex.com
+YANDEX_API_KEY = "89e7e637-788c-4fb7-8dd5-04b6c1529ef3" # developer.tech.yandex.com
 MAPBOX_API_KEY = "pk.eyJ1IjoiZXJzYW5kaXpheW4iLCJhIjoiY21ub2s4ZHJkMDhjODJzc2NndTE0OW5tZiJ9.bEG9jocRrOvYJ03E6gQjiQ" # account.mapbox.com
 
 # ==========================================
