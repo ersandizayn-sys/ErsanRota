@@ -974,13 +974,16 @@ with tab_harita:
                                     if girilen_kod == str(gizli_kod):
                                         with st.spinner("İşleniyor..."):
                                             sip_no = str(row['Siparis_No']).strip()
+                                            paket_no = str(row['Paket_No']).strip()
                                             
-                                            if sip_no.startswith('2') or sip_no.startswith('4') or g_id in ['start_node', 'end_node']:
+                                            # Eğer Paket No veya Sipariş No yoksa (-) doğrudan lokal teslimat yap. 
+                                            # (Başlangıç/Bitiş duraklarını da dahil et)
+                                            if paket_no == "-" or sip_no == "-" or g_id in ['start_node', 'end_node']:
                                                 basari, msj = True, "Lokal Teslimat"
                                                 durum_sonucu = "success_local"
                                             else:
-                                                basari, msj = trendyol_teslim_edildi_yap(TRENDYOL_SATICI_ID, TRENDYOL_API_KEY, TRENDYOL_API_SECRET, row['Paket_No'], sip_no)
-                                                durum_sonucu = "success_trendyol"
+                                                # Her siparişi Trendyol'a yolla!
+                                                basari, msj = trendyol_teslim_edildi_yap(TRENDYOL_SATICI_ID, TRENDYOL_API_KEY, TRENDYOL_API_SECRET, paket_no, sip_no)
                                                 
                                             if basari:
                                                 st.session_state.delivery_status[g_id] = durum_sonucu
@@ -1085,13 +1088,18 @@ with tab_harita:
                                 if st.button("✔️ Doğrula", key=f"dogrula_{idx}_{g_id}", type="primary", use_container_width=True):
                                     if girilen_kod == str(gizli_kod):
                                         with st.spinner("İşleniyor..."):
-                                            basari, msj = True, "Lokal Teslimat"
+                                            sip_no = str(row['Siparis_No']).strip()
+                                            paket_no = str(row['Paket_No']).strip()
+
+                                            if paket_no == "-" or sip_no == "-" or g_id in ['start_node', 'end_node']:
+                                                basari, msj = True, "Lokal Teslimat"
+                                                durum_sonucu = "success_local"
+                                            else:
+                                                basari, msj = trendyol_teslim_edildi_yap(TRENDYOL_SATICI_ID, TRENDYOL_API_KEY, TRENDYOL_API_SECRET, paket_no, sip_no)
+                                                durum_sonucu = "success_trendyol"
+
                                             if basari:
-                                                st.session_state.delivery_status[g_id] = "success_local"
-                                                st.session_state[f"show_otp_{idx}_{g_id}"] = False
-                                                otomatik_kaydet() 
-                                                st.toast("✅ Paket Başarıyla Teslim Edildi!")
-                                                st.rerun()
+                                                st.session_state.delivery_status[g_id] = durum_sonucu
                                     else:
                                         st.error("❌ Hatalı Kod! Lütfen tekrar deneyin.")
                             with c_vazgec:
