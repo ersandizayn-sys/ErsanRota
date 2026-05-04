@@ -1183,7 +1183,7 @@ with tab_profil:
             
     st.markdown("---")
     st.markdown("#### 📜 Geçmiş Rotalarım (Analizli)")
-    st.info("💡 **Bilgi:** Rotaları indirebilmek veya SİLEBİLMEK için Admin yetkisi gereklidir. Raporlamalar otomatik hesaplanmıştır.")
+    st.info("💡 **Bilgi:** Rotaları indirebilmek veya SİLEBİLMEK için Admin yetkisi gereklidir. Ancak kaldığınız rotaya DEVAM ETMEK için şifre gerekmez.")
     
     gecmis_dosyalar = [f for f in os.listdir("gecmis_rotalar") if f.endswith(".xlsx") and (f"_{st.session_state.kullanici}_" in f or f.startswith(f"{st.session_state.kullanici}_"))]
     
@@ -1222,8 +1222,47 @@ with tab_profil:
                 st.markdown(rapor_html, unsafe_allow_html=True)
             
             with col_down:
-                st.markdown("<br><br>", unsafe_allow_html=True) 
+                st.markdown("<br>", unsafe_allow_html=True) 
                 
+                # --- YENİ EKLENEN: ROTAYA DEVAM ET BUTONU ---
+                if st.button("🚀 Kaldığın Yerden Devam Et", key=f"resume_{dosya}", type="primary", use_container_width=True):
+                    try:
+                        # Excel'i arka planda okuyup sistemi son haline geri sarıyoruz
+                        df_loaded = pd.read_excel(f"gecmis_rotalar/{dosya}")
+                        
+                        status_dict = {}
+                        if 'Teslimat_Durumu' in df_loaded.columns:
+                            for idx, r in df_loaded.iterrows():
+                                g_id = r['Gizli_ID']
+                                st_text = r['Teslimat_Durumu']
+                                if st_text == "Trendyol Teslim Edildi": status_dict[g_id] = "success_trendyol"
+                                elif st_text == "Lokal (HB/N11) Teslim Edildi": status_dict[g_id] = "success_local"
+                                elif st_text == "Teslim Edilemedi": status_dict[g_id] = "failed"
+                                else: status_dict[g_id] = "pending"
+                            st.session_state.sirali_df = df_loaded.drop(columns=['Teslimat_Durumu'])
+                        else:
+                            st.session_state.sirali_df = df_loaded
+                            for idx, r in df_loaded.iterrows():
+                                status_dict[r['Gizli_ID']] = "pending"
+                        
+                        # Değişkenleri hafızaya geri yükle
+                        st.session_state.delivery_status = status_dict
+                        st.session_state.df_validated = st.session_state.sirali_df[~st.session_state.sirali_df['Gizli_ID'].isin(['start_node', 'end_node'])].copy()
+                        
+                        st.session_state.harita_hazir = True
+                        st.session_state.aktif_dosya_yolu = f"gecmis_rotalar/{dosya}"
+                        
+                        if len(parcalar) >= 6:
+                            st.session_state.rota_olusturma_zamani = f"{parcalar[2]}_{parcalar[3]}"
+                        else:
+                            st.session_state.rota_olusturma_zamani = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')
+                            
+                        st.toast("✅ Rota başarıyla yüklendi! Lütfen '2. Planlama ve Harita' sekmesine geçin.", icon="🗺️")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Rota yüklenemedi: {e}")
+                
+                # SADECE ADMİNİN GÖRECEĞİ ALAN (Silme ve İndirme)
                 if st.session_state.get(f"auth_{dosya}", False):
                     c_dl, c_del = st.columns([7, 3])
                     with c_dl:
