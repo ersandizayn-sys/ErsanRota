@@ -874,7 +874,14 @@ with tab_harita:
                 st.info(f"🚚 Kalan Teslimat: {pending_count} / {total_customers} | Aşağıdan güzergahı inceleyebilirsiniz.")
             
             sirali_df = st.session_state.sirali_df
-            m = folium.Map(location=[sirali_df['Enlem'].iloc[0], sirali_df['Boylam'].iloc[0]], zoom_start=10)
+            
+            # --- YENİ EKLENEN: GOOGLE MAPS HARİTA GÖRÜNÜMÜ ---
+            m = folium.Map(
+                location=[sirali_df['Enlem'].iloc[0], sirali_df['Boylam'].iloc[0]], 
+                zoom_start=11,
+                tiles="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
+                attr="Google Maps"
+            )
             
             koordinat_listesi = []
             for idx, row in sirali_df.iterrows():
