@@ -893,7 +893,11 @@ with tab_harita:
                     else: renk_hex = '#ff9800' 
                     
                 marker_html = f'<div style="background-color: {renk_hex}; color: white; border-radius: 50%; width: 26px; height: 26px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 13px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.5);">{idx+1}</div>'
-                folium.Marker([lat, lon], popup=f"<b>Durak {idx+1}</b><br>{row['Alici_Ad']}<br>Tel: {row['Telefon']}", tooltip=f"Durak {idx+1}", icon=folium.DivIcon(html=marker_html, icon_anchor=(13, 13))).add_to(m)
+                
+                # --- YENİ ADRESLİ VE GENİŞ POPUP TASARIMI ---
+                popup_icerik = f"<div style='min-width: 220px;'><b>Durak {idx+1}</b><br>👤 {row['Alici_Ad']}<br>📞 {row['Telefon']}<hr style='margin: 5px 0;'>📍 <b>Adres:</b><br>{row['Adres']}</div>"
+                
+                folium.Marker([lat, lon], popup=folium.Popup(popup_icerik, max_width=350), tooltip=f"Durak {idx+1} - {row['Alici_Ad']}", icon=folium.DivIcon(html=marker_html, icon_anchor=(13, 13))).add_to(m)
                 
             folium.PolyLine(koordinat_listesi, color="#ff4b4b", weight=3, opacity=0.8).add_to(m)
             folium_static(m, width=1200, height=500)
